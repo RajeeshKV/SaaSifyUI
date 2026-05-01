@@ -28,19 +28,6 @@ const initialAuthForms = {
   },
 };
 
-const initialProjectForms = {
-  create: {
-    name: "",
-  },
-  update: {
-    id: "",
-    name: "",
-  },
-  delete: {
-    id: "",
-  },
-};
-
 function loadStoredSession() {
   try {
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
@@ -66,14 +53,23 @@ function toCurlBlock(session) {
   -H "X-Tenant-Id: ${session.tenantId}"`;
 }
 
+function mapProjectsResponse(data) {
+  return Array.isArray(data) ? data : [];
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState("login");
   const [session, setSession] = useState(() => loadStoredSession());
+  const [activeTab, setActiveTab] = useState("login");
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [authForms, setAuthForms] = useState(initialAuthForms);
-  const [projectForms, setProjectForms] = useState(initialProjectForms);
-  const [health, setHealth] = useState({ loading: true, data: null, error: "" });
   const [authFeedback, setAuthFeedback] = useState({ message: "", tone: "neutral" });
   const [authLoading, setAuthLoading] = useState(false);
+  const [health, setHealth] = useState({ loading: true, data: null, error: "" });
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectDrafts, setProjectDrafts] = useState({});
+  const [selectedProjectIds, setSelectedProjectIds] = useState([]);
+  const [newProjectName, setNewProjectName] = useState("");
   const [apiFeedback, setApiFeedback] = useState({ message: "", tone: "neutral" });
   const [apiLoading, setApiLoading] = useState("");
   const [lastResponse, setLastResponse] = useState(null);
@@ -104,6 +100,17 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isSessionActive(session)) {
+      setShowAuthModal(false);
+      void fetchProjects();
+    } else {
+      setProjects([]);
+      setProjectDrafts({});
+      setSelectedProjectIds([]);
+    }
+  }, [session.token, session.tenantId]);
+
   const sessionExpiryLabel = useMemo(() => {
     if (!session.accessTokenExpiresAt) return "No active token";
     const date = new Date(session.accessTokenExpiresAt);
@@ -120,14 +127,88 @@ export default function App() {
     }));
   }
 
-  function updateProjectForm(form, field, value) {
-    setProjectForms((current) => ({
-      ...current,
-      [form]: {
-        ...current[form],
-        [field]: value,
-      },
-    }));
+  function setFeedback(setter, message, tone) {
+    setter({ message, tone });
+  }
+
+  function applySession(data) {
+    setSession({
+      tenantId: data.tenantId,
+      userId: data.userId,
+      email: data.email,
+      role: data.role,
+      token: data.token,
+      refreshToken: data.refreshToken,
+      accessTokenExpiresAt: data.accessTokenExpiresAt,
+    });
+  }
+
+  function getProtectedHeaders(includeJson = true) {
+    return buildHeaders({
+      token: session.token,
+      tenantId: session.tenantId,
+      includeJson,
+    });
+  }
+
+  function syncProjectDrafts(items) {
+    setProjectDrafts((current) => {
+      const next = {};
+      items.forEach((project) => {
+        next[project.id] = current[project.id] ?? project.name;
+      });
+      return next;
+    });
+  }
+
+  async function runProtectedRequest(label, requestFactory, options = {}) {
+    if (!isSessionActive(session)) {
+      setFeedback(
+        setApiFeedback,
+        "Open login or register first so the app can attach your JWT and tenant header.",
+        "error",
+      );
+      return null;
+    }
+
+    setApiLoading(label);
+    setApiFeedback({ message: "", tone: "neutral" });
+
+    try {
+      const data = await requestFactory();
+      if (!options.silentSuccess) {
+        setFeedback(setApiFeedback, `${label} completed successfully.`, "success");
+      }
+      setLastResponse({ title: label, value: data ?? "204 No Content", tone: "success" });
+      return data;
+    } catch (error) {
+      setFeedback(setApiFeedback, error.message, "error");
+      setLastResponse({ title: `${label} error`, value: error.body || error.message, tone: "error" });
+      return null;
+    } finally {
+      setApiLoading("");
+    }
+  }
+
+  async function fetchProjects() {
+    setProjectsLoading(true);
+    const data = await runProtectedRequest(
+      "List projects",
+      () =>
+        apiRequest("/api/projects", {
+          headers: getProtectedHeaders(),
+        }),
+      { silentSuccess: true },
+    );
+    if (data) {
+      const items = mapProjectsResponse(data);
+      setProjects(items);
+      syncProjectDrafts(items);
+      setSelectedProjectIds((current) =>
+        current.filter((projectId) => items.some((item) => item.id === projectId)),
+      );
+    }
+    setProjectsLoading(false);
   }
 
   async function handleAuthSubmit(event) {
@@ -150,24 +231,17 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      setSession({
-        tenantId: data.tenantId,
-        userId: data.userId,
-        email: data.email,
-        role: data.role,
-        token: data.token,
-        refreshToken: data.refreshToken,
-        accessTokenExpiresAt: data.accessTokenExpiresAt,
-      });
-      setAuthFeedback({
-        message: isLogin
-          ? "Login successful. Protected endpoints are ready to use."
-          : "Registration successful. Your tenant and admin session are ready.",
-        tone: "success",
-      });
+      applySession(data);
       setLastResponse({ title: `${activeTab} response`, value: data, tone: "success" });
+      setFeedback(
+        setAuthFeedback,
+        isLogin
+          ? "Login successful. Redirecting you into the API workspace."
+          : "Tenant created. You are now inside the workspace.",
+        "success",
+      );
+
       if (!isLogin) {
-        setActiveTab("login");
         setAuthForms((current) => ({
           ...current,
           login: {
@@ -187,7 +261,7 @@ export default function App() {
         }));
       }
     } catch (error) {
-      setAuthFeedback({ message: error.message, tone: "error" });
+      setFeedback(setAuthFeedback, error.message, "error");
       setLastResponse({
         title: `${activeTab} error`,
         value: error.body || error.message,
@@ -198,134 +272,121 @@ export default function App() {
     }
   }
 
-  async function runProtectedRequest(label, requestFactory) {
-    if (!isSessionActive(session)) {
-      setApiFeedback({
-        message: "Log in or register first so the app can attach your JWT and tenant header.",
-        tone: "error",
-      });
-      return;
-    }
-
-    setApiLoading(label);
-    setApiFeedback({ message: "", tone: "neutral" });
-
-    try {
-      const data = await requestFactory();
-      setApiFeedback({ message: `${label} completed successfully.`, tone: "success" });
-      setLastResponse({ title: label, value: data ?? "204 No Content", tone: "success" });
-    } catch (error) {
-      setApiFeedback({ message: error.message, tone: "error" });
-      setLastResponse({ title: `${label} error`, value: error.body || error.message, tone: "error" });
-    } finally {
-      setApiLoading("");
-    }
-  }
-
-  function getProtectedHeaders(includeJson = true) {
-    return buildHeaders({
-      token: session.token,
-      tenantId: session.tenantId,
-      includeJson,
-    });
-  }
-
-  async function listProjects() {
-    await runProtectedRequest("List projects", () =>
-      apiRequest("/api/projects", {
-        headers: getProtectedHeaders(),
-      }),
-    );
-  }
-
-  async function createProject(event) {
+  async function handleCreateProject(event) {
     event.preventDefault();
-    await runProtectedRequest("Create project", () =>
+    if (!newProjectName.trim()) return;
+
+    const data = await runProtectedRequest("Create project", () =>
       apiRequest("/api/projects", {
         method: "POST",
         headers: getProtectedHeaders(),
-        body: JSON.stringify({
-          name: projectForms.create.name,
-        }),
+        body: JSON.stringify({ name: newProjectName.trim() }),
       }),
     );
-    setProjectForms((current) => ({
-      ...current,
-      create: initialProjectForms.create,
-    }));
+
+    if (data) {
+      setNewProjectName("");
+      await fetchProjects();
+    }
   }
 
-  async function updateProject(event) {
-    event.preventDefault();
-    await runProtectedRequest("Update project", () =>
-      apiRequest(`/api/projects/${projectForms.update.id}`, {
+  async function handleInlineUpdate(projectId) {
+    const name = (projectDrafts[projectId] || "").trim();
+    if (!name) {
+      setFeedback(setApiFeedback, "Project name cannot be empty.", "error");
+      return;
+    }
+
+    const data = await runProtectedRequest(`Update project #${projectId}`, () =>
+      apiRequest(`/api/projects/${projectId}`, {
         method: "PUT",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
-          id: Number(projectForms.update.id),
-          name: projectForms.update.name,
+          id: Number(projectId),
+          name,
         }),
       }),
     );
+
+    if (data) {
+      setProjects((current) =>
+        current.map((project) => (project.id === projectId ? { ...project, name } : project)),
+      );
+    }
   }
 
-  async function deleteProject(event) {
-    event.preventDefault();
-    await runProtectedRequest("Delete project", () =>
-      apiRequest(`/api/projects/${projectForms.delete.id}`, {
+  async function handleDeleteProject(projectId) {
+    const data = await runProtectedRequest(`Delete project #${projectId}`, () =>
+      apiRequest(`/api/projects/${projectId}`, {
         method: "DELETE",
         headers: getProtectedHeaders(false),
       }),
     );
-    setProjectForms((current) => ({
-      ...current,
-      delete: initialProjectForms.delete,
-    }));
+
+    if (data !== null || apiLoading === "") {
+      setProjects((current) => current.filter((project) => project.id !== projectId));
+      setSelectedProjectIds((current) => current.filter((id) => id !== projectId));
+      setProjectDrafts((current) => {
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
+    }
   }
 
   async function refreshSession() {
-    await runProtectedRequest("Refresh token", async () => {
-      const data = await apiRequest("/api/auth/refresh", {
+    const data = await runProtectedRequest("Refresh token", () =>
+      apiRequest("/api/auth/refresh", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
           refreshToken: session.refreshToken,
         }),
-      });
+      }),
+    );
 
-      setSession({
-        tenantId: data.tenantId,
-        userId: data.userId,
-        email: data.email,
-        role: data.role,
-        token: data.token,
-        refreshToken: data.refreshToken,
-        accessTokenExpiresAt: data.accessTokenExpiresAt,
-      });
-
-      return data;
-    });
+    if (data) {
+      applySession(data);
+    }
   }
 
   async function revokeSession() {
-    await runProtectedRequest("Revoke token", async () => {
-      const data = await apiRequest("/api/auth/revoke", {
+    const data = await runProtectedRequest("Revoke token", () =>
+      apiRequest("/api/auth/revoke", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
           refreshToken: session.refreshToken,
         }),
-      });
+      }),
+    );
 
+    if (data !== null || apiLoading === "") {
       setSession(emptySession);
-      return data;
-    });
+    }
   }
 
   function signOutLocally() {
     setSession(emptySession);
-    setApiFeedback({ message: "Local session cleared from this browser.", tone: "success" });
+    setFeedback(setApiFeedback, "Local session cleared from this browser.", "success");
   }
+
+  function toggleProjectSelection(projectId) {
+    setSelectedProjectIds((current) =>
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId],
+    );
+  }
+
+  function openAuthModal(mode = "login") {
+    setActiveTab(mode);
+    setShowAuthModal(true);
+    setAuthFeedback({ message: "", tone: "neutral" });
+  }
+
+  const selectedCount = selectedProjectIds.length;
+  const authenticated = isSessionActive(session);
 
   return (
     <div className="app-shell">
@@ -340,84 +401,305 @@ export default function App() {
           </a>
         </div>
         <nav className="topbar__nav">
-          <a href="#auth">Auth</a>
-          <a href="#playground">Playground</a>
-          <a href="#flow">Flow</a>
+          {authenticated ? (
+            <>
+              <button className="nav-button" type="button" onClick={fetchProjects}>
+                Refresh Grid
+              </button>
+              <button className="nav-button" type="button" onClick={signOutLocally}>
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="nav-button" type="button" onClick={() => openAuthModal("login")}>
+                Login
+              </button>
+              <button className="nav-button nav-button--accent" type="button" onClick={() => openAuthModal("register")}>
+                Register
+              </button>
+            </>
+          )}
         </nav>
       </header>
 
       <main>
-        <section className="hero" id="home">
-          <div className="hero__copy">
-            <span className="eyebrow">MULTI-TENANT SAAS BACKEND</span>
-            <h1>
-              A frontend shell for secure tenant-aware API access.
-            </h1>
-            <p>
-              This UI sits on top of the .NET 8 backend from
-              Rajeesh KV and makes its workflow visible: create a tenant,
-              authenticate with JWT, attach the right tenant context, and
-              operate on protected project endpoints without guessing headers.
-            </p>
-            <div className="hero__actions">
-              <a className="button button--primary" href="#auth">
-                Login or Register
-              </a>
-              <a className="button button--ghost" href="#playground">
-                Use Protected APIs
-              </a>
-            </div>
+        {!authenticated ? (
+          <>
+            <section className="hero hero--landing" id="home">
+              <div className="hero__copy">
+                <span className="eyebrow">MULTI-TENANT SAAS BACKEND</span>
+                <h1>Explain first. Authenticate second. Operate beautifully after.</h1>
+                <p>
+                  SaaSify UI is now designed as a proper front door for the backend:
+                  a strong project explanation up front, auth tucked into a popup,
+                  and a cleaner post-login workspace for managing project endpoints
+                  with less friction and better feedback.
+                </p>
+                <div className="hero__actions">
+                  <button className="button button--primary" type="button" onClick={() => openAuthModal("login")}>
+                    Open Login
+                  </button>
+                  <button className="button button--ghost" type="button" onClick={() => openAuthModal("register")}>
+                    Create Tenant
+                  </button>
+                </div>
+                <div className="hero__chips">
+                  <StatusPill
+                    label={
+                      health.loading
+                        ? "Checking backend"
+                        : health.data
+                          ? `API ${health.data.status}`
+                          : "Backend unreachable"
+                    }
+                    tone={health.data ? "success" : health.loading ? "neutral" : "error"}
+                  />
+                  <StatusPill label="Popup Auth" tone="neutral" />
+                  <StatusPill label="Workspace Grid" tone="neutral" />
+                  <StatusPill label="Inline Updates" tone="neutral" />
+                </div>
+              </div>
 
-            <div className="hero__chips">
-              <StatusPill
-                label={
-                  health.loading
-                    ? "Checking backend"
-                    : health.data
-                      ? `API ${health.data.status}`
-                      : "Backend unreachable"
-                }
-                tone={health.data ? "success" : health.loading ? "neutral" : "error"}
+              <div className="terminal-card">
+                <div className="terminal-card__header">
+                  <span />
+                  <span />
+                  <span />
+                  <strong>workspace-preview.sh</strong>
+                </div>
+                <div className="terminal-card__body">
+                  <p>$ curl {API_BASE_URL}/api/health</p>
+                  <p className="muted">
+                    {health.data
+                      ? JSON.stringify(health.data)
+                      : health.error || "Waiting for API response..."}
+                  </p>
+                  <p>$ Login / Register</p>
+                  <p className="muted">Handled in a modal instead of taking over the landing page.</p>
+                  <p>$ Manage /api/projects</p>
+                  <p className="success">Inline edit, inline delete, and future bulk actions.</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="landing-grid">
+              <article className="glass-card feature-card">
+                <span className="eyebrow">WHAT THIS PROJECT IS</span>
+                <h2>A frontend console for a tenant-aware .NET backend.</h2>
+                <p>
+                  The backend handles authentication, tenant isolation, refresh tokens,
+                  and project CRUD. This UI focuses on making those capabilities usable
+                  instead of exposing raw forms and disconnected endpoint blocks.
+                </p>
+              </article>
+
+              <article className="glass-card feature-card">
+                <span className="eyebrow">FLOW</span>
+                <h2>From hero to workspace without losing context.</h2>
+                <p>
+                  Users land on an explanation-first hero, open auth only when needed,
+                  and then move into a dedicated dashboard where API operations feel like
+                  product actions rather than demo requests.
+                </p>
+              </article>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="workspace-hero">
+              <div>
+                <span className="eyebrow">PROJECT WORKSPACE</span>
+                <h1>Manage protected endpoints from a cleaner signed-in page.</h1>
+                <p>
+                  You are signed in as <strong>{session.email}</strong> for tenant{" "}
+                  <strong>{session.tenantId}</strong>. Create, edit, delete, refresh,
+                  and inspect project state inline from the grid below.
+                </p>
+              </div>
+              <div className="workspace-hero__actions">
+                <button className="button button--primary" type="button" onClick={fetchProjects}>
+                  {projectsLoading ? "Refreshing..." : "Refresh Projects"}
+                </button>
+                <button className="button button--ghost" type="button" onClick={refreshSession}>
+                  Refresh Token
+                </button>
+              </div>
+            </section>
+
+            <section className="workspace-grid">
+              <article className="glass-card workspace-main">
+                <div className="section-heading section-heading--compact">
+                  <span className="eyebrow">API ENDPOINTS</span>
+                  <h2>Projects grid with inline actions.</h2>
+                  <p>
+                    Create records quickly, edit names inline, remove rows inline,
+                    and select multiple projects now so the future bulk update API can slot in cleanly.
+                  </p>
+                </div>
+
+                <div className="toolbar">
+                  <form className="toolbar__create" onSubmit={handleCreateProject}>
+                    <input
+                      value={newProjectName}
+                      onChange={(event) => setNewProjectName(event.target.value)}
+                      placeholder="Create a new project"
+                    />
+                    <button
+                      className="button button--primary"
+                      disabled={apiLoading === "Create project" || !newProjectName.trim()}
+                    >
+                      {apiLoading === "Create project" ? "Creating..." : "Add Project"}
+                    </button>
+                  </form>
+
+                  <div className="bulk-panel">
+                    <div>
+                      <strong>{selectedCount}</strong> selected
+                      <span>Bulk rename will plug in once the API supports multi-update.</span>
+                    </div>
+                    <button className="button button--subtle" type="button" disabled>
+                      Bulk Update Coming Soon
+                    </button>
+                  </div>
+                </div>
+
+                {apiFeedback.message ? (
+                  <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
+                ) : null}
+
+                <div className="project-grid">
+                  {projectsLoading ? (
+                    <div className="empty-state">Loading project cards...</div>
+                  ) : projects.length === 0 ? (
+                    <div className="empty-state">
+                      No projects found yet. Create one above to populate the workspace.
+                    </div>
+                  ) : (
+                    projects.map((project) => (
+                      <article className="project-card" key={project.id}>
+                        <div className="project-card__top">
+                          <label className="selector">
+                            <input
+                              type="checkbox"
+                              checked={selectedProjectIds.includes(project.id)}
+                              onChange={() => toggleProjectSelection(project.id)}
+                            />
+                            <span>Select</span>
+                          </label>
+                          <StatusPill label={`Project #${project.id}`} tone="neutral" />
+                        </div>
+
+                        <div className="project-card__body">
+                          <label>
+                            <span>Name</span>
+                            <input
+                              value={projectDrafts[project.id] ?? project.name}
+                              onChange={(event) =>
+                                setProjectDrafts((current) => ({
+                                  ...current,
+                                  [project.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+
+                        <div className="project-card__actions">
+                          <button
+                            className="button button--ghost"
+                            type="button"
+                            onClick={() => handleInlineUpdate(project.id)}
+                            disabled={apiLoading === `Update project #${project.id}`}
+                          >
+                            {apiLoading === `Update project #${project.id}` ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            className="button button--danger"
+                            type="button"
+                            onClick={() => handleDeleteProject(project.id)}
+                            disabled={apiLoading === `Delete project #${project.id}`}
+                          >
+                            {apiLoading === `Delete project #${project.id}` ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </article>
+
+              <aside className="glass-card workspace-side">
+                <div className="section-heading section-heading--compact">
+                  <span className="eyebrow">SESSION</span>
+                  <h2>Live auth context.</h2>
+                </div>
+
+                <dl className="session-grid">
+                  <div>
+                    <dt>Tenant</dt>
+                    <dd>{session.tenantId}</dd>
+                  </div>
+                  <div>
+                    <dt>User</dt>
+                    <dd>{session.email}</dd>
+                  </div>
+                  <div>
+                    <dt>Role</dt>
+                    <dd>{session.role}</dd>
+                  </div>
+                  <div>
+                    <dt>Expires</dt>
+                    <dd>{sessionExpiryLabel}</dd>
+                  </div>
+                </dl>
+
+                <div className="code-block">
+                  <div className="code-block__label">Generated curl</div>
+                  <pre>{toCurlBlock(session)}</pre>
+                </div>
+
+                <div className="stack-actions">
+                  <button className="button button--ghost button--wide" type="button" onClick={refreshSession}>
+                    Refresh Token
+                  </button>
+                  <button className="button button--ghost button--wide" type="button" onClick={revokeSession}>
+                    Revoke Token
+                  </button>
+                  <button className="button button--subtle button--wide" type="button" onClick={signOutLocally}>
+                    Clear Local Session
+                  </button>
+                </div>
+
+                <div className="code-block">
+                  <div className="code-block__label">API base URL</div>
+                  <pre>{API_BASE_URL}</pre>
+                </div>
+              </aside>
+            </section>
+
+            <section className="response-section">
+              <ResponsePanel
+                title={lastResponse?.title}
+                value={lastResponse?.value}
+                tone={lastResponse?.tone}
               />
-              <StatusPill label="JWT Auth" tone="neutral" />
-              <StatusPill label="Tenant Isolation" tone="neutral" />
-              <StatusPill label="Project CRUD" tone="neutral" />
-            </div>
-          </div>
+            </section>
+          </>
+        )}
+      </main>
 
-          <div className="terminal-card">
-            <div className="terminal-card__header">
-              <span />
-              <span />
-              <span />
-              <strong>backend-ready.sh</strong>
-            </div>
-            <div className="terminal-card__body">
-              <p>$ curl {API_BASE_URL}/api/health</p>
-              <p className="muted">
-                {health.data
-                  ? JSON.stringify(health.data)
-                  : health.error || "Waiting for API response..."}
-              </p>
-              <p>$ POST /api/auth/login</p>
-              <p className="muted">Requires email, password, and tenantId.</p>
-              <p>$ GET /api/projects</p>
-              <p className="success">
-                Requires Bearer token + X-Tenant-Id header.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid-section" id="auth">
-          <article className="glass-card auth-card">
-            <div className="section-heading">
-              <span className="eyebrow">AUTH ACCESS</span>
-              <h2>Register a tenant or log in to unlock the API.</h2>
-              <p>
-                Registration provisions a tenant and admin account. Login expects
-                the exact `tenantId` returned from registration.
-              </p>
+      {showAuthModal ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowAuthModal(false)}>
+          <div className="auth-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="auth-modal__header">
+              <div>
+                <span className="eyebrow">AUTH ACCESS</span>
+                <h2>{activeTab === "login" ? "Welcome back." : "Create your tenant."}</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowAuthModal(false)}>
+                ×
+              </button>
             </div>
 
             <div className="tab-row">
@@ -443,9 +725,7 @@ export default function App() {
                   <span>Tenant name</span>
                   <input
                     value={authForms.register.tenantName}
-                    onChange={(event) =>
-                      updateAuthForm("register", "tenantName", event.target.value)
-                    }
+                    onChange={(event) => updateAuthForm("register", "tenantName", event.target.value)}
                     placeholder="Acme Labs"
                     required
                   />
@@ -455,9 +735,7 @@ export default function App() {
                   <span>Tenant ID</span>
                   <input
                     value={authForms.login.tenantId}
-                    onChange={(event) =>
-                      updateAuthForm("login", "tenantId", event.target.value)
-                    }
+                    onChange={(event) => updateAuthForm("login", "tenantId", event.target.value)}
                     placeholder="1"
                     inputMode="numeric"
                     required
@@ -481,9 +759,7 @@ export default function App() {
                 <input
                   type="password"
                   value={authForms[activeTab].password}
-                  onChange={(event) =>
-                    updateAuthForm(activeTab, "password", event.target.value)
-                  }
+                  onChange={(event) => updateAuthForm(activeTab, "password", event.target.value)}
                   placeholder="password123"
                   required
                 />
@@ -493,210 +769,17 @@ export default function App() {
                 {authLoading
                   ? `${activeTab === "login" ? "Logging in" : "Registering"}...`
                   : activeTab === "login"
-                    ? "Start Session"
-                    : "Create Tenant & Session"}
+                    ? "Enter Workspace"
+                    : "Create Tenant & Enter"}
               </button>
             </form>
 
             {authFeedback.message ? (
               <div className={`notice notice--${authFeedback.tone}`}>{authFeedback.message}</div>
             ) : null}
-          </article>
-
-          <article className="glass-card session-card">
-            <div className="section-heading">
-              <span className="eyebrow">SESSION STATE</span>
-              <h2>Keep the headers correct automatically.</h2>
-              <p>
-                Once authenticated, the app stores your tenant ID, access token,
-                refresh token, and expiry so every protected request is formed in
-                the backend’s expected way.
-              </p>
-            </div>
-
-            <dl className="session-grid">
-              <div>
-                <dt>Tenant</dt>
-                <dd>{session.tenantId || "Not set"}</dd>
-              </div>
-              <div>
-                <dt>User</dt>
-                <dd>{session.email || "Anonymous"}</dd>
-              </div>
-              <div>
-                <dt>Role</dt>
-                <dd>{session.role || "Unknown"}</dd>
-              </div>
-              <div>
-                <dt>Access Expires</dt>
-                <dd>{sessionExpiryLabel}</dd>
-              </div>
-            </dl>
-
-            <div className="code-block">
-              <div className="code-block__label">Generated curl</div>
-              <pre>{toCurlBlock(session)}</pre>
-            </div>
-
-            <div className="session-actions">
-              <button
-                className="button button--ghost"
-                type="button"
-                onClick={refreshSession}
-                disabled={!isSessionActive(session) || apiLoading === "Refresh token"}
-              >
-                Refresh Token
-              </button>
-              <button
-                className="button button--ghost"
-                type="button"
-                onClick={revokeSession}
-                disabled={!session.refreshToken || apiLoading === "Revoke token"}
-              >
-                Revoke Token
-              </button>
-              <button className="button button--subtle" type="button" onClick={signOutLocally}>
-                Clear Local Session
-              </button>
-            </div>
-          </article>
-        </section>
-
-        <section className="grid-section grid-section--wide" id="playground">
-          <article className="glass-card playground-card">
-            <div className="section-heading">
-              <span className="eyebrow">API PLAYGROUND</span>
-              <h2>Exercise the protected project endpoints.</h2>
-              <p>
-                Every request adds `Authorization: Bearer &lt;token&gt;` and
-                `X-Tenant-Id` from the active session, which is exactly what this
-                backend needs for project access.
-              </p>
-            </div>
-
-            <div className="action-row">
-              <button
-                className="button button--primary"
-                type="button"
-                onClick={listProjects}
-                disabled={apiLoading === "List projects"}
-              >
-                {apiLoading === "List projects" ? "Loading..." : "List Projects"}
-              </button>
-            </div>
-
-            <div className="playground-grid">
-              <form className="mini-form" onSubmit={createProject}>
-                <h3>Create Project</h3>
-                <label>
-                  <span>Name</span>
-                  <input
-                    value={projectForms.create.name}
-                    onChange={(event) =>
-                      updateProjectForm("create", "name", event.target.value)
-                    }
-                    placeholder="Roadmap Portal"
-                    required
-                  />
-                </label>
-                <button
-                  className="button button--ghost button--wide"
-                  disabled={apiLoading === "Create project"}
-                >
-                  {apiLoading === "Create project" ? "Creating..." : "POST /api/projects"}
-                </button>
-              </form>
-
-              <form className="mini-form" onSubmit={updateProject}>
-                <h3>Update Project</h3>
-                <label>
-                  <span>Project ID</span>
-                  <input
-                    value={projectForms.update.id}
-                    onChange={(event) => updateProjectForm("update", "id", event.target.value)}
-                    placeholder="1"
-                    inputMode="numeric"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>New name</span>
-                  <input
-                    value={projectForms.update.name}
-                    onChange={(event) =>
-                      updateProjectForm("update", "name", event.target.value)
-                    }
-                    placeholder="Roadmap Portal v2"
-                    required
-                  />
-                </label>
-                <button
-                  className="button button--ghost button--wide"
-                  disabled={apiLoading === "Update project"}
-                >
-                  {apiLoading === "Update project" ? "Updating..." : "PUT /api/projects/:id"}
-                </button>
-              </form>
-
-              <form className="mini-form" onSubmit={deleteProject}>
-                <h3>Delete Project</h3>
-                <label>
-                  <span>Project ID</span>
-                  <input
-                    value={projectForms.delete.id}
-                    onChange={(event) => updateProjectForm("delete", "id", event.target.value)}
-                    placeholder="1"
-                    inputMode="numeric"
-                    required
-                  />
-                </label>
-                <button
-                  className="button button--ghost button--wide"
-                  disabled={apiLoading === "Delete project"}
-                >
-                  {apiLoading === "Delete project" ? "Deleting..." : "DELETE /api/projects/:id"}
-                </button>
-              </form>
-            </div>
-
-            {apiFeedback.message ? (
-              <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
-            ) : null}
-          </article>
-
-          <aside className="glass-card flow-card" id="flow">
-            <div className="section-heading">
-              <span className="eyebrow">REQUEST FLOW</span>
-              <h2>How this UI maps to the backend.</h2>
-            </div>
-            <ol className="flow-list">
-              <li>Register creates a tenant and admin account, then returns JWT and refresh tokens.</li>
-              <li>Login requires `email`, `password`, and the correct `tenantId`.</li>
-              <li>Protected project requests attach both Bearer auth and `X-Tenant-Id`.</li>
-              <li>Refresh rotates the refresh token and updates the access token expiry.</li>
-              <li>Errors from auth, tenant validation, and server middleware are surfaced directly in the UI.</li>
-            </ol>
-
-            <div className="code-block">
-              <div className="code-block__label">API base URL</div>
-              <pre>{API_BASE_URL}</pre>
-            </div>
-
-            <p className="flow-note">
-              Set `VITE_API_BASE_URL` if your backend runs somewhere other than
-              `https://localhost:5001`.
-            </p>
-          </aside>
-        </section>
-
-        <section className="response-section">
-          <ResponsePanel
-            title={lastResponse?.title}
-            value={lastResponse?.value}
-            tone={lastResponse?.tone}
-          />
-        </section>
-      </main>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
