@@ -227,7 +227,7 @@ export default function App() {
       : authForms.register;
 
     try {
-      const data = await apiRequest(`/api/auth/${activeTab}`, {
+      const data = await apiRequest(`/api/Auth/${activeTab}`, {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify(payload),
@@ -365,7 +365,7 @@ export default function App() {
 
   async function refreshSession() {
     const data = await runProtectedRequest("Refresh token", () =>
-      apiRequest("/api/auth/refresh", {
+      apiRequest("/api/Auth/refresh", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
@@ -381,7 +381,7 @@ export default function App() {
 
   async function revokeSession() {
     const data = await runProtectedRequest("Revoke token", () =>
-      apiRequest("/api/auth/revoke", {
+      apiRequest("/api/Auth/revoke", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
@@ -444,7 +444,7 @@ export default function App() {
               <button className="nav-button" type="button" onClick={fetchProjects}>
                 Refresh Grid
               </button>
-              <button className="nav-button" type="button" onClick={signOutLocally}>
+              <button className="nav-button" type="button" onClick={revokeSession}>
                 Sign Out
               </button>
             </>
