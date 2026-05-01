@@ -432,12 +432,7 @@ export default function App() {
       <div className="ambient ambient--right" />
 
       <header className="topbar">
-        <div>
-          <span className="eyebrow">RAJEESH KV STYLE</span>
-          <a className="brand" href="#home">
-            SaaSify UI
-          </a>
-        </div>
+        <a className="brand" href="#home">Saasify</a>
         <nav className="topbar__nav">
           {authenticated ? (
             <>
