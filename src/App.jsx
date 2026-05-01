@@ -19,7 +19,6 @@ const initialAuthForms = {
   login: {
     email: "",
     password: "",
-    tenantId: "",
   },
   register: {
     tenantName: "",
@@ -224,10 +223,7 @@ export default function App() {
 
     const isLogin = activeTab === "login";
     const payload = isLogin
-      ? {
-          ...authForms.login,
-          tenantId: Number(authForms.login.tenantId),
-        }
+      ? authForms.login
       : authForms.register;
 
     try {
@@ -253,7 +249,6 @@ export default function App() {
           login: {
             email: data.email,
             password: "",
-            tenantId: String(data.tenantId),
           },
           register: initialAuthForms.register,
         }));
@@ -782,24 +777,13 @@ export default function App() {
             </div>
 
             <form className="form-grid" onSubmit={handleAuthSubmit}>
-              {activeTab === "register" ? (
+              {activeTab === "register" && (
                 <label>
                   <span>Tenant name</span>
                   <input
                     value={authForms.register.tenantName}
                     onChange={(event) => updateAuthForm("register", "tenantName", event.target.value)}
                     placeholder="Acme Labs"
-                    required
-                  />
-                </label>
-              ) : (
-                <label>
-                  <span>Tenant ID</span>
-                  <input
-                    value={authForms.login.tenantId}
-                    onChange={(event) => updateAuthForm("login", "tenantId", event.target.value)}
-                    placeholder="1"
-                    inputMode="numeric"
                     required
                   />
                 </label>
