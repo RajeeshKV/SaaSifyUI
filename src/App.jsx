@@ -182,6 +182,12 @@ export default function App() {
       setLastResponse({ title: label, value: data ?? "204 No Content", tone: "success" });
       return data;
     } catch (error) {
+      if (error.status === 401) {
+        setSession(emptySession);
+        setFeedback(setApiFeedback, "Session expired or token invalid. You have been signed out.", "error");
+        setLastResponse({ title: `${label} — unauthorized`, value: error.body || error.message, tone: "error" });
+        return null;
+      }
       setFeedback(setApiFeedback, error.message, "error");
       setLastResponse({ title: `${label} error`, value: error.body || error.message, tone: "error" });
       return null;
@@ -309,29 +315,57 @@ export default function App() {
     );
 
     if (data) {
-      setProjects((current) =>
-        current.map((project) => (project.id === projectId ? { ...project, name } : project)),
-      );
+      await fetchProjects();
     }
   }
 
   async function handleDeleteProject(projectId) {
-    const data = await runProtectedRequest(`Delete project #${projectId}`, () =>
+    const ok = await runProtectedRequest(`Delete project #${projectId}`, () =>
       apiRequest(`/api/projects/${projectId}`, {
         method: "DELETE",
         headers: getProtectedHeaders(false),
       }),
     );
 
-    if (data !== null || apiLoading === "") {
-      setProjects((current) => current.filter((project) => project.id !== projectId));
-      setSelectedProjectIds((current) => current.filter((id) => id !== projectId));
-      setProjectDrafts((current) => {
-        const next = { ...current };
-        delete next[projectId];
-        return next;
-      });
+    if (ok !== null || apiLoading === "") {
+      await fetchProjects();
     }
+  }
+
+  async function handleBulkUpdate() {
+    if (selectedProjectIds.length === 0) return;
+
+    for (const projectId of selectedProjectIds) {
+      const name = (projectDrafts[projectId] || "").trim();
+      if (!name) continue;
+
+      await runProtectedRequest(`Update project #${projectId}`, () =>
+        apiRequest(`/api/projects/${projectId}`, {
+          method: "PUT",
+          headers: getProtectedHeaders(),
+          body: JSON.stringify({ id: Number(projectId), name }),
+        }),
+      );
+    }
+
+    setSelectedProjectIds([]);
+    await fetchProjects();
+  }
+
+  async function handleBulkDelete() {
+    if (selectedProjectIds.length === 0) return;
+
+    for (const projectId of [...selectedProjectIds]) {
+      await runProtectedRequest(`Delete project #${projectId}`, () =>
+        apiRequest(`/api/projects/${projectId}`, {
+          method: "DELETE",
+          headers: getProtectedHeaders(false),
+        }),
+      );
+    }
+
+    setSelectedProjectIds([]);
+    await fetchProjects();
   }
 
   async function refreshSession() {
@@ -379,6 +413,14 @@ export default function App() {
     );
   }
 
+  function toggleSelectAll() {
+    if (selectedProjectIds.length === projects.length && projects.length > 0) {
+      setSelectedProjectIds([]);
+    } else {
+      setSelectedProjectIds(projects.map((p) => p.id));
+    }
+  }
+
   function openAuthModal(mode = "login") {
     setActiveTab(mode);
     setShowAuthModal(true);
@@ -387,6 +429,7 @@ export default function App() {
 
   const selectedCount = selectedProjectIds.length;
   const authenticated = isSessionActive(session);
+  const allSelected = projects.length > 0 && selectedCount === projects.length;
 
   return (
     <div className="app-shell">
@@ -431,10 +474,9 @@ export default function App() {
                 <span className="eyebrow">MULTI-TENANT SAAS BACKEND</span>
                 <h1>Explain first. Authenticate second. Operate beautifully after.</h1>
                 <p>
-                  SaaSify UI is now designed as a proper front door for the backend:
-                  a strong project explanation up front, auth tucked into a popup,
-                  and a cleaner post-login workspace for managing project endpoints
-                  with less friction and better feedback.
+                  SaaSify UI is a frontend console for the multi-tenant .NET backend.
+                  Auth lives in a popup. Post-login workspace exposes project CRUD
+                  through a clean data grid with inline and bulk operations.
                 </p>
                 <div className="hero__actions">
                   <button className="button button--primary" type="button" onClick={() => openAuthModal("login")}>
@@ -456,8 +498,8 @@ export default function App() {
                     tone={health.data ? "success" : health.loading ? "neutral" : "error"}
                   />
                   <StatusPill label="Popup Auth" tone="neutral" />
-                  <StatusPill label="Workspace Grid" tone="neutral" />
-                  <StatusPill label="Inline Updates" tone="neutral" />
+                  <StatusPill label="Data Grid" tone="neutral" />
+                  <StatusPill label="Bulk Actions" tone="neutral" />
                 </div>
               </div>
 
@@ -476,91 +518,87 @@ export default function App() {
                       : health.error || "Waiting for API response..."}
                   </p>
                   <p>$ Login / Register</p>
-                  <p className="muted">Handled in a modal instead of taking over the landing page.</p>
+                  <p className="muted">Handled in a modal overlay.</p>
                   <p>$ Manage /api/projects</p>
-                  <p className="success">Inline edit, inline delete, and future bulk actions.</p>
+                  <p className="success">Data grid with inline edit, delete, and bulk ops.</p>
                 </div>
               </div>
             </section>
 
-            <section className="landing-grid">
-              <article className="glass-card feature-card">
-                <span className="eyebrow">WHAT THIS PROJECT IS</span>
-                <h2>A frontend console for a tenant-aware .NET backend.</h2>
-                <p>
-                  The backend handles authentication, tenant isolation, refresh tokens,
-                  and project CRUD. This UI focuses on making those capabilities usable
-                  instead of exposing raw forms and disconnected endpoint blocks.
-                </p>
-              </article>
-
-              <article className="glass-card feature-card">
+            <div className="feature-strip">
+              <div className="feature-chip">
+                <span className="eyebrow">WHAT THIS IS</span>
+                <h3>Frontend console for a tenant-aware .NET backend</h3>
+                <p>Auth, tenant isolation, refresh tokens, and project CRUD — all usable from one UI.</p>
+              </div>
+              <div className="feature-chip">
                 <span className="eyebrow">FLOW</span>
-                <h2>From hero to workspace without losing context.</h2>
-                <p>
-                  Users land on an explanation-first hero, open auth only when needed,
-                  and then move into a dedicated dashboard where API operations feel like
-                  product actions rather than demo requests.
-                </p>
-              </article>
-            </section>
+                <h3>Hero → auth popup → data grid workspace</h3>
+                <p>Users land here, authenticate when ready, then manage API resources inline.</p>
+              </div>
+              <div className="feature-chip">
+                <span className="eyebrow">OPERATIONS</span>
+                <h3>Inline edit, inline delete, multi-select bulk actions</h3>
+                <p>Every mutation auto-refreshes the grid. No stale data, no manual reloads.</p>
+              </div>
+            </div>
           </>
         ) : (
           <>
             <section className="workspace-hero">
               <div>
                 <span className="eyebrow">PROJECT WORKSPACE</span>
-                <h1>Manage protected endpoints from a cleaner signed-in page.</h1>
-                <p>
-                  You are signed in as <strong>{session.email}</strong> for tenant{" "}
-                  <strong>{session.tenantId}</strong>. Create, edit, delete, refresh,
-                  and inspect project state inline from the grid below.
-                </p>
+                <h1>
+                  {session.email} — Tenant {session.tenantId}
+                </h1>
               </div>
               <div className="workspace-hero__actions">
-                <button className="button button--primary" type="button" onClick={fetchProjects}>
-                  {projectsLoading ? "Refreshing..." : "Refresh Projects"}
+                <button className="button button--primary button--sm" type="button" onClick={fetchProjects}>
+                  {projectsLoading ? "Refreshing..." : "Refresh"}
                 </button>
-                <button className="button button--ghost" type="button" onClick={refreshSession}>
+                <button className="button button--ghost button--sm" type="button" onClick={refreshSession}>
                   Refresh Token
                 </button>
               </div>
             </section>
 
-            <section className="workspace-grid">
-              <article className="glass-card workspace-main">
-                <div className="section-heading section-heading--compact">
-                  <span className="eyebrow">API ENDPOINTS</span>
-                  <h2>Projects grid with inline actions.</h2>
-                  <p>
-                    Create records quickly, edit names inline, remove rows inline,
-                    and select multiple projects now so the future bulk update API can slot in cleanly.
-                  </p>
-                </div>
+            <div className="workspace-layout">
+              <article className="workspace-main">
+                <div className="workspace-main__header">
+                  <div className="toolbar">
+                    <form className="toolbar__create" onSubmit={handleCreateProject}>
+                      <input
+                        value={newProjectName}
+                        onChange={(event) => setNewProjectName(event.target.value)}
+                        placeholder="New project name..."
+                      />
+                      <button
+                        className="button button--primary button--sm"
+                        disabled={apiLoading === "Create project" || !newProjectName.trim()}
+                      >
+                        {apiLoading === "Create project" ? "Creating..." : "Add"}
+                      </button>
+                    </form>
 
-                <div className="toolbar">
-                  <form className="toolbar__create" onSubmit={handleCreateProject}>
-                    <input
-                      value={newProjectName}
-                      onChange={(event) => setNewProjectName(event.target.value)}
-                      placeholder="Create a new project"
-                    />
-                    <button
-                      className="button button--primary"
-                      disabled={apiLoading === "Create project" || !newProjectName.trim()}
-                    >
-                      {apiLoading === "Create project" ? "Creating..." : "Add Project"}
-                    </button>
-                  </form>
-
-                  <div className="bulk-panel">
-                    <div>
-                      <strong>{selectedCount}</strong> selected
-                      <span>Bulk rename will plug in once the API supports multi-update.</span>
-                    </div>
-                    <button className="button button--subtle" type="button" disabled>
-                      Bulk Update Coming Soon
-                    </button>
+                    {selectedCount > 0 && (
+                      <div className="bulk-bar">
+                        <span className="bulk-bar__count">{selectedCount}</span> selected
+                        <button
+                          className="button button--ghost button--sm"
+                          type="button"
+                          onClick={handleBulkUpdate}
+                        >
+                          Update Selected
+                        </button>
+                        <button
+                          className="button button--danger button--sm"
+                          type="button"
+                          onClick={handleBulkDelete}
+                        >
+                          Delete Selected
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -568,123 +606,147 @@ export default function App() {
                   <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
                 ) : null}
 
-                <div className="project-grid">
-                  {projectsLoading ? (
-                    <div className="empty-state">Loading project cards...</div>
+                <div className="data-grid-wrap">
+                  {projectsLoading && projects.length === 0 ? (
+                    <div className="empty-state">Loading projects...</div>
                   ) : projects.length === 0 ? (
                     <div className="empty-state">
-                      No projects found yet. Create one above to populate the workspace.
+                      No projects yet. Create one above to populate the grid.
                     </div>
                   ) : (
-                    projects.map((project) => (
-                      <article className="project-card" key={project.id}>
-                        <div className="project-card__top">
-                          <label className="selector">
+                    <table className="data-grid">
+                      <thead>
+                        <tr>
+                          <th>
                             <input
                               type="checkbox"
-                              checked={selectedProjectIds.includes(project.id)}
-                              onChange={() => toggleProjectSelection(project.id)}
+                              className="grid-checkbox"
+                              checked={allSelected}
+                              onChange={toggleSelectAll}
+                              title="Select all"
                             />
-                            <span>Select</span>
-                          </label>
-                          <StatusPill label={`Project #${project.id}`} tone="neutral" />
-                        </div>
-
-                        <div className="project-card__body">
-                          <label>
-                            <span>Name</span>
-                            <input
-                              value={projectDrafts[project.id] ?? project.name}
-                              onChange={(event) =>
-                                setProjectDrafts((current) => ({
-                                  ...current,
-                                  [project.id]: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-                        </div>
-
-                        <div className="project-card__actions">
-                          <button
-                            className="button button--ghost"
-                            type="button"
-                            onClick={() => handleInlineUpdate(project.id)}
-                            disabled={apiLoading === `Update project #${project.id}`}
+                          </th>
+                          <th className="col-id">ID</th>
+                          <th className="col-name">Name</th>
+                          <th className="col-actions">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projects.map((project) => (
+                          <tr
+                            key={project.id}
+                            className={selectedProjectIds.includes(project.id) ? "row--selected" : ""}
                           >
-                            {apiLoading === `Update project #${project.id}` ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            className="button button--danger"
-                            type="button"
-                            onClick={() => handleDeleteProject(project.id)}
-                            disabled={apiLoading === `Delete project #${project.id}`}
-                          >
-                            {apiLoading === `Delete project #${project.id}` ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </article>
-                    ))
+                            <td>
+                              <input
+                                type="checkbox"
+                                className="grid-checkbox"
+                                checked={selectedProjectIds.includes(project.id)}
+                                onChange={() => toggleProjectSelection(project.id)}
+                              />
+                            </td>
+                            <td className="col-id">#{project.id}</td>
+                            <td className="col-name">
+                              <input
+                                value={projectDrafts[project.id] ?? project.name}
+                                onChange={(event) =>
+                                  setProjectDrafts((current) => ({
+                                    ...current,
+                                    [project.id]: event.target.value,
+                                  }))
+                                }
+                              />
+                            </td>
+                            <td className="col-actions">
+                              <div className="row-actions">
+                                <button
+                                  className="button button--ghost button--sm"
+                                  type="button"
+                                  onClick={() => handleInlineUpdate(project.id)}
+                                  disabled={apiLoading === `Update project #${project.id}`}
+                                >
+                                  {apiLoading === `Update project #${project.id}` ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  className="button button--danger button--sm"
+                                  type="button"
+                                  onClick={() => handleDeleteProject(project.id)}
+                                  disabled={apiLoading === `Delete project #${project.id}`}
+                                >
+                                  {apiLoading === `Delete project #${project.id}` ? "..." : "Delete"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
               </article>
 
-              <aside className="glass-card workspace-side">
-                <div className="section-heading section-heading--compact">
-                  <span className="eyebrow">SESSION</span>
-                  <h2>Live auth context.</h2>
+              <aside className="workspace-side">
+                <div className="glass-card">
+                  <div className="section-heading section-heading--compact">
+                    <span className="eyebrow">SESSION</span>
+                    <h2>Auth Context</h2>
+                  </div>
+
+                  <dl className="session-grid">
+                    <div>
+                      <dt>Tenant</dt>
+                      <dd>{session.tenantId}</dd>
+                    </div>
+                    <div>
+                      <dt>User</dt>
+                      <dd>{session.email}</dd>
+                    </div>
+                    <div>
+                      <dt>Role</dt>
+                      <dd>{session.role}</dd>
+                    </div>
+                    <div>
+                      <dt>Expires</dt>
+                      <dd>{sessionExpiryLabel}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="code-block">
+                    <div className="code-block__label">Curl</div>
+                    <pre>{toCurlBlock(session)}</pre>
+                  </div>
+
+                  <div className="stack-actions">
+                    <button className="button button--ghost button--wide button--sm" type="button" onClick={refreshSession}>
+                      Refresh Token
+                    </button>
+                    <button className="button button--ghost button--wide button--sm" type="button" onClick={revokeSession}>
+                      Revoke Token
+                    </button>
+                    <button className="button button--subtle button--wide button--sm" type="button" onClick={signOutLocally}>
+                      Clear Local Session
+                    </button>
+                  </div>
                 </div>
 
-                <dl className="session-grid">
-                  <div>
-                    <dt>Tenant</dt>
-                    <dd>{session.tenantId}</dd>
+                {lastResponse && (
+                  <div className="glass-card">
+                    <ResponsePanel
+                      title={lastResponse.title}
+                      value={lastResponse.value}
+                      tone={lastResponse.tone}
+                    />
                   </div>
-                  <div>
-                    <dt>User</dt>
-                    <dd>{session.email}</dd>
-                  </div>
-                  <div>
-                    <dt>Role</dt>
-                    <dd>{session.role}</dd>
-                  </div>
-                  <div>
-                    <dt>Expires</dt>
-                    <dd>{sessionExpiryLabel}</dd>
-                  </div>
-                </dl>
+                )}
 
-                <div className="code-block">
-                  <div className="code-block__label">Generated curl</div>
-                  <pre>{toCurlBlock(session)}</pre>
-                </div>
-
-                <div className="stack-actions">
-                  <button className="button button--ghost button--wide" type="button" onClick={refreshSession}>
-                    Refresh Token
-                  </button>
-                  <button className="button button--ghost button--wide" type="button" onClick={revokeSession}>
-                    Revoke Token
-                  </button>
-                  <button className="button button--subtle button--wide" type="button" onClick={signOutLocally}>
-                    Clear Local Session
-                  </button>
-                </div>
-
-                <div className="code-block">
-                  <div className="code-block__label">API base URL</div>
-                  <pre>{API_BASE_URL}</pre>
+                <div className="glass-card">
+                  <div className="code-block">
+                    <div className="code-block__label">API Base</div>
+                    <pre>{API_BASE_URL}</pre>
+                  </div>
                 </div>
               </aside>
-            </section>
-
-            <section className="response-section">
-              <ResponsePanel
-                title={lastResponse?.title}
-                value={lastResponse?.value}
-                tone={lastResponse?.tone}
-              />
-            </section>
+            </div>
           </>
         )}
       </main>
