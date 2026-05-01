@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import ResponsePanel from "./components/ResponsePanel";
-import StatusPill from "./components/StatusPill";
 import { API_BASE_URL, apiRequest, buildHeaders } from "./lib/api";
 
 const SESSION_STORAGE_KEY = "saasify-ui-session";
@@ -184,7 +183,7 @@ export default function App() {
       if (error.status === 401) {
         setSession(emptySession);
         setFeedback(setApiFeedback, "Session expired or token invalid. You have been signed out.", "error");
-        setLastResponse({ title: `${label} — unauthorized`, value: error.body || error.message, tone: "error" });
+        setLastResponse({ title: `${label} (unauthorized)`, value: error.body || error.message, tone: "error" });
         return null;
       }
       setFeedback(setApiFeedback, error.message, "error");
@@ -459,37 +458,33 @@ export default function App() {
       <main>
         {!authenticated ? (
           <>
+            <div className={`health-bar health-bar--${health.data ? "online" : health.loading ? "checking" : "offline"}`}>
+              <span className="health-bar__dot" />
+              <span className="health-bar__label">
+                {health.loading
+                  ? "Connecting to backend..."
+                  : health.data
+                    ? "Backend online"
+                    : "Backend unreachable. The service may be waking up."}
+              </span>
+            </div>
+
             <section className="hero hero--landing" id="home">
               <div className="hero__copy">
-                <span className="eyebrow">MULTI-TENANT SAAS BACKEND</span>
-                <h1>Explain first. Authenticate second. Operate beautifully after.</h1>
+                <span className="eyebrow">MULTI-TENANT SAAS PLATFORM</span>
+                <h1>Tenant isolation. JWT auth. Project management. One clean UI.</h1>
                 <p>
-                  SaaSify UI is a frontend console for the multi-tenant .NET backend.
-                  Auth lives in a popup. Post-login workspace exposes project CRUD
-                  through a clean data grid with inline and bulk operations.
+                  Saasify is a full-stack multi-tenant SaaS platform built on .NET with
+                  tenant-scoped data isolation, secure JWT authentication with refresh
+                  token rotation, and a React workspace for managing resources across tenants.
                 </p>
                 <div className="hero__actions">
                   <button className="button button--primary" type="button" onClick={() => openAuthModal("login")}>
-                    Open Login
+                    Sign In
                   </button>
                   <button className="button button--ghost" type="button" onClick={() => openAuthModal("register")}>
-                    Create Tenant
+                    Register Tenant
                   </button>
-                </div>
-                <div className="hero__chips">
-                  <StatusPill
-                    label={
-                      health.loading
-                        ? "Checking backend"
-                        : health.data
-                          ? `API ${health.data.status}`
-                          : "Backend unreachable"
-                    }
-                    tone={health.data ? "success" : health.loading ? "neutral" : "error"}
-                  />
-                  <StatusPill label="Popup Auth" tone="neutral" />
-                  <StatusPill label="Data Grid" tone="neutral" />
-                  <StatusPill label="Bulk Actions" tone="neutral" />
                 </div>
               </div>
 
@@ -498,38 +493,38 @@ export default function App() {
                   <span />
                   <span />
                   <span />
-                  <strong>workspace-preview.sh</strong>
+                  <strong>saasify-api.sh</strong>
                 </div>
                 <div className="terminal-card__body">
                   <p>$ curl {API_BASE_URL}/api/health</p>
                   <p className="muted">
                     {health.data
                       ? JSON.stringify(health.data)
-                      : health.error || "Waiting for API response..."}
+                      : health.error || "Waiting for response..."}
                   </p>
-                  <p>$ Login / Register</p>
-                  <p className="muted">Handled in a modal overlay.</p>
-                  <p>$ Manage /api/projects</p>
-                  <p className="success">Data grid with inline edit, delete, and bulk ops.</p>
+                  <p>$ POST /api/Auth/login</p>
+                  <p className="muted">JWT + refresh token issued, tenant context set.</p>
+                  <p>$ GET /api/projects</p>
+                  <p className="success">Tenant-scoped project list returned.</p>
                 </div>
               </div>
             </section>
 
             <div className="feature-strip">
               <div className="feature-chip">
-                <span className="eyebrow">WHAT THIS IS</span>
-                <h3>Frontend console for a tenant-aware .NET backend</h3>
-                <p>Auth, tenant isolation, refresh tokens, and project CRUD — all usable from one UI.</p>
+                <span className="eyebrow">ARCHITECTURE</span>
+                <h3>Multi-tenant .NET backend with scoped data isolation</h3>
+                <p>Each tenant operates in a fully isolated context. No data leakage across boundaries.</p>
               </div>
               <div className="feature-chip">
-                <span className="eyebrow">FLOW</span>
-                <h3>Hero → auth popup → data grid workspace</h3>
-                <p>Users land here, authenticate when ready, then manage API resources inline.</p>
+                <span className="eyebrow">SECURITY</span>
+                <h3>JWT access tokens with refresh token rotation</h3>
+                <p>Short-lived access tokens, server-side revocation, and automatic session management.</p>
               </div>
               <div className="feature-chip">
-                <span className="eyebrow">OPERATIONS</span>
-                <h3>Inline edit, inline delete, multi-select bulk actions</h3>
-                <p>Every mutation auto-refreshes the grid. No stale data, no manual reloads.</p>
+                <span className="eyebrow">DEVELOPER EXPERIENCE</span>
+                <h3>React workspace with live API interaction</h3>
+                <p>Manage projects, inspect responses, and test endpoints directly from the browser.</p>
               </div>
             </div>
           </>
@@ -539,7 +534,7 @@ export default function App() {
               <div>
                 <span className="eyebrow">PROJECT WORKSPACE</span>
                 <h1>
-                  {session.email} — Tenant {session.tenantId}
+                  {session.email} · Tenant {session.tenantId}
                 </h1>
               </div>
               <div className="workspace-hero__actions">
