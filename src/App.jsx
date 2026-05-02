@@ -71,6 +71,15 @@ export default function App() {
   const [apiFeedback, setApiFeedback] = useState({ message: "", tone: "neutral" });
   const [apiLoading, setApiLoading] = useState("");
   const [lastResponse, setLastResponse] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [subscriptionHistory, setSubscriptionHistory] = useState([]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [pagination, setPagination] = useState({ totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false });
 
   useEffect(() => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
@@ -102,12 +111,45 @@ export default function App() {
     if (isSessionActive(session)) {
       setShowAuthModal(false);
       void fetchProjects();
+      void fetchSubscription();
+      void fetchSubscriptionHistory();
     } else {
       setProjects([]);
       setProjectDrafts({});
       setSelectedProjectIds([]);
+      setSubscription(null);
+      setSubscriptionHistory([]);
     }
   }, [session.token, session.tenantId]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const fallbackPlans = [
+      { name: "Free", description: "Perfect for small teams getting started", monthlyPrice: 0, rateLimitPerMinute: 100, maxUsers: 3, features: ["Basic features", "3 users", "100 requests/minute"] },
+      { name: "Professional", description: "For growing teams that need more power", monthlyPrice: 29.99, rateLimitPerMinute: 1000, maxUsers: 10, features: ["All Free features", "10 users", "1000 requests/minute", "Priority support"] },
+      { name: "Enterprise", description: "For large organizations with advanced needs", monthlyPrice: 99.99, rateLimitPerMinute: 5000, maxUsers: 50, features: ["All Professional features", "50 users", "5000 requests/minute", "24/7 support", "Custom integrations"] },
+    ];
+
+    async function loadPlans() {
+      if (!isSessionActive(session)) {
+        if (!ignore) { setPlans(fallbackPlans); setPlansLoading(false); }
+        return;
+      }
+      try {
+        const data = await apiRequest("/api/Subscription/plans", {
+          headers: buildHeaders({ token: session.token, tenantId: session.tenantId }),
+        });
+        if (!ignore) setPlans(Array.isArray(data) ? data : fallbackPlans);
+      } catch {
+        if (!ignore) setPlans(fallbackPlans);
+      } finally {
+        if (!ignore) setPlansLoading(false);
+      }
+    }
+    loadPlans();
+    return () => { ignore = true; };
+  }, [session.token]);
 
   const sessionExpiryLabel = useMemo(() => {
     if (!session.accessTokenExpiresAt) return "No active token";
@@ -194,23 +236,32 @@ export default function App() {
     }
   }
 
-  async function fetchProjects() {
+  async function fetchProjects(page = pageNumber, size = pageSize) {
     setProjectsLoading(true);
     const data = await runProtectedRequest(
       "List projects",
       () =>
-        apiRequest("/api/projects", {
+        apiRequest(`/api/projects?pageNumber=${page}&pageSize=${size}`, {
           headers: getProtectedHeaders(),
         }),
       { silentSuccess: true },
     );
     if (data) {
-      const items = mapProjectsResponse(data);
+      const items = mapProjectsResponse(data.data ?? data);
       setProjects(items);
       syncProjectDrafts(items);
       setSelectedProjectIds((current) =>
         current.filter((projectId) => items.some((item) => item.id === projectId)),
       );
+      if (data.totalItems !== undefined) {
+        setPagination({
+          totalItems: data.totalItems,
+          totalPages: data.totalPages,
+          hasPreviousPage: data.hasPreviousPage,
+          hasNextPage: data.hasNextPage,
+        });
+        setPageNumber(data.pageNumber ?? page);
+      }
     }
     setProjectsLoading(false);
   }
@@ -399,6 +450,54 @@ export default function App() {
     setFeedback(setApiFeedback, "Local session cleared from this browser.", "success");
   }
 
+  async function fetchSubscription() {
+    const data = await runProtectedRequest(
+      "Get subscription",
+      () => apiRequest("/api/Subscription/current", { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+    if (data) setSubscription(data);
+  }
+
+  async function fetchSubscriptionHistory() {
+    const data = await runProtectedRequest(
+      "Subscription history",
+      () => apiRequest("/api/Subscription/history", { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+    if (data) setSubscriptionHistory(Array.isArray(data) ? data : []);
+  }
+
+  async function handleUpgradePlan(planName) {
+    setUpgradeLoading(planName);
+    const data = await runProtectedRequest(`Upgrade to ${planName}`, () =>
+      apiRequest("/api/Subscription/upgrade", {
+        method: "POST",
+        headers: getProtectedHeaders(),
+        body: JSON.stringify({ newPlan: planName }),
+      }),
+    );
+    setUpgradeLoading("");
+    if (data) {
+      setSubscription(data);
+      setShowUpgradeModal(false);
+      await fetchSubscriptionHistory();
+    }
+  }
+
+  async function handleCancelSubscription() {
+    const data = await runProtectedRequest("Cancel subscription", () =>
+      apiRequest("/api/Subscription/cancel", {
+        method: "POST",
+        headers: getProtectedHeaders(false),
+      }),
+    );
+    if (data !== null) {
+      await fetchSubscription();
+      await fetchSubscriptionHistory();
+    }
+  }
+
   function toggleProjectSelection(projectId) {
     setSelectedProjectIds((current) =>
       current.includes(projectId)
@@ -435,22 +534,17 @@ export default function App() {
         <nav className="topbar__nav">
           {authenticated ? (
             <>
-              <button className="nav-button" type="button" onClick={fetchProjects}>
-                Refresh Grid
+              <button className="nav-icon" type="button" onClick={fetchProjects} title="Refresh projects">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               </button>
-              <button className="nav-button" type="button" onClick={revokeSession}>
-                Sign Out
+              <button className="nav-icon" type="button" onClick={revokeSession} title="Sign out">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
               </button>
             </>
           ) : (
-            <>
-              <button className="nav-button" type="button" onClick={() => openAuthModal("login")}>
-                Login
-              </button>
-              <button className="nav-button nav-button--accent" type="button" onClick={() => openAuthModal("register")}>
-                Register
-              </button>
-            </>
+            <button className="nav-icon" type="button" onClick={() => openAuthModal("login")} title="Sign in / Register">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            </button>
           )}
         </nav>
       </header>
@@ -480,10 +574,7 @@ export default function App() {
                 </p>
                 <div className="hero__actions">
                   <button className="button button--primary" type="button" onClick={() => openAuthModal("login")}>
-                    Sign In
-                  </button>
-                  <button className="button button--ghost" type="button" onClick={() => openAuthModal("register")}>
-                    Register Tenant
+                    Get Started
                   </button>
                 </div>
               </div>
@@ -510,22 +601,62 @@ export default function App() {
               </div>
             </section>
 
-            <div className="feature-strip">
-              <div className="feature-chip">
-                <span className="eyebrow">ARCHITECTURE</span>
-                <h3>Multi-tenant .NET backend with scoped data isolation</h3>
-                <p>Each tenant operates in a fully isolated context. No data leakage across boundaries.</p>
+            <div className="pricing-section">
+              <div className="pricing-section__title">
+                <span className="eyebrow">SUBSCRIPTION PLANS</span>
+                <h2>Choose the right plan for your team</h2>
               </div>
-              <div className="feature-chip">
-                <span className="eyebrow">SECURITY</span>
-                <h3>JWT access tokens with refresh token rotation</h3>
-                <p>Short-lived access tokens, server-side revocation, and automatic session management.</p>
-              </div>
-              <div className="feature-chip">
-                <span className="eyebrow">DEVELOPER EXPERIENCE</span>
-                <h3>React workspace with live API interaction</h3>
-                <p>Manage projects, inspect responses, and test endpoints directly from the browser.</p>
-              </div>
+              {plansLoading ? (
+                <div className="pricing-grid">
+                  {[1, 2, 3].map((i) => (
+                    <div className="plan-card" key={i}>
+                      <div className="skeleton-row" style={{ width: "40%", marginBottom: "0.5rem" }} />
+                      <div className="skeleton-row" style={{ width: "60%", marginBottom: "0.4rem" }} />
+                      <div className="skeleton-row" style={{ width: "80%", marginBottom: "1rem" }} />
+                      <div className="skeleton-row" style={{ width: "100%", height: "2.5rem" }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="pricing-grid">
+                  {plans.map((plan) => (
+                    <div
+                      key={plan.name}
+                      className={`plan-card${plan.name === "Professional" ? " plan-card--featured" : ""}`}
+                    >
+                      {plan.name === "Professional" && (
+                        <span className="plan-card__badge">Most Popular</span>
+                      )}
+                      <div className="plan-card__name">{plan.name}</div>
+                      <div className="plan-card__price">
+                        {plan.monthlyPrice === 0 ? "Free" : `$${plan.monthlyPrice}`}
+                        {plan.monthlyPrice > 0 && <span>/mo</span>}
+                      </div>
+                      <div className="plan-card__desc">{plan.description}</div>
+                      <div className="plan-card__meta">
+                        <div className="plan-card__meta-item">
+                          <strong>{plan.maxUsers}</strong> users
+                        </div>
+                        <div className="plan-card__meta-item">
+                          <strong>{plan.rateLimitPerMinute}</strong> req/min
+                        </div>
+                      </div>
+                      <ul className="plan-card__features">
+                        {plan.features.map((f) => (
+                          <li key={f}>{f}</li>
+                        ))}
+                      </ul>
+                      <button
+                        className={`button ${plan.name === "Professional" ? "button--primary" : "button--ghost"} button--wide`}
+                        type="button"
+                        onClick={() => openAuthModal("register")}
+                      >
+                        Get Started
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -536,10 +667,24 @@ export default function App() {
                 <h1>
                   {session.email} · Tenant {session.tenantId}
                 </h1>
+                {subscription && (
+                  <div className="plan-badge" style={{ marginTop: "0.5rem" }}>
+                    <span className="plan-badge__dot" />
+                    <span className="plan-badge__plan">{subscription.plan} Plan</span>
+                    <span className="plan-badge__expiry">
+                      {subscription.isActive
+                        ? `Expires ${new Date(subscription.endDate).toLocaleDateString()}`
+                        : "Inactive"}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="workspace-hero__actions">
                 <button className="button button--primary button--sm" type="button" onClick={fetchProjects}>
                   {projectsLoading ? "Refreshing..." : "Refresh"}
+                </button>
+                <button className="button button--ghost button--sm" type="button" onClick={() => setShowUpgradeModal(true)}>
+                  Upgrade Plan
                 </button>
                 <button className="button button--ghost button--sm" type="button" onClick={refreshSession}>
                   Refresh Token
@@ -668,6 +813,81 @@ export default function App() {
                     </table>
                   )}
                 </div>
+
+                {pagination.totalItems > 0 && (
+                  <div className="pagination-bar">
+                    <div className="pagination-bar__info">
+                      <strong>{pagination.totalItems}</strong> project{pagination.totalItems !== 1 ? "s" : ""}
+                      {" · "}Page <strong>{pageNumber}</strong> of <strong>{pagination.totalPages}</strong>
+                    </div>
+                    <div className="pagination-bar__controls">
+                      <select
+                        className="page-size-select"
+                        value={pageSize}
+                        onChange={(e) => {
+                          const newSize = Number(e.target.value);
+                          setPageSize(newSize);
+                          setPageNumber(1);
+                          fetchProjects(1, newSize);
+                        }}
+                      >
+                        <option value={10}>10 / page</option>
+                        <option value={25}>25 / page</option>
+                        <option value={50}>50 / page</option>
+                      </select>
+                      <div className="pagination-bar__pages">
+                        <button
+                          className="page-btn"
+                          type="button"
+                          disabled={!pagination.hasPreviousPage}
+                          onClick={() => fetchProjects(1, pageSize)}
+                        >
+                          ««
+                        </button>
+                        <button
+                          className="page-btn"
+                          type="button"
+                          disabled={!pagination.hasPreviousPage}
+                          onClick={() => fetchProjects(pageNumber - 1, pageSize)}
+                        >
+                          ‹
+                        </button>
+                        {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => {
+                          let start = Math.max(1, pageNumber - 2);
+                          if (start + 4 > pagination.totalPages) start = Math.max(1, pagination.totalPages - 4);
+                          const pg = start + i;
+                          if (pg > pagination.totalPages) return null;
+                          return (
+                            <button
+                              key={pg}
+                              className={`page-btn${pg === pageNumber ? " page-btn--active" : ""}`}
+                              type="button"
+                              onClick={() => fetchProjects(pg, pageSize)}
+                            >
+                              {pg}
+                            </button>
+                          );
+                        })}
+                        <button
+                          className="page-btn"
+                          type="button"
+                          disabled={!pagination.hasNextPage}
+                          onClick={() => fetchProjects(pageNumber + 1, pageSize)}
+                        >
+                          ›
+                        </button>
+                        <button
+                          className="page-btn"
+                          type="button"
+                          disabled={!pagination.hasNextPage}
+                          onClick={() => fetchProjects(pagination.totalPages, pageSize)}
+                        >
+                          »»
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </article>
 
               <aside className="workspace-side">
@@ -713,6 +933,85 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                {subscription && (
+                  <div className="glass-card">
+                    <div className="section-heading section-heading--compact">
+                      <span className="eyebrow">SUBSCRIPTION</span>
+                      <h2>Current Plan</h2>
+                    </div>
+                    <div className="sub-card">
+                      <div className="sub-card__header">
+                        <span className="sub-card__plan-name">{subscription.plan}</span>
+                        <span className="sub-card__plan-price">
+                          {subscription.amount === 0 ? "Free" : `$${subscription.amount}/mo`}
+                        </span>
+                      </div>
+                      <div className="sub-card__details">
+                        <dl className="sub-card__detail">
+                          <dt>Status</dt>
+                          <dd style={{ color: subscription.isActive ? "var(--primary)" : "var(--danger)" }}>
+                            {subscription.isActive ? "Active" : "Inactive"}
+                          </dd>
+                        </dl>
+                        <dl className="sub-card__detail">
+                          <dt>Expires</dt>
+                          <dd>{new Date(subscription.endDate).toLocaleDateString()}</dd>
+                        </dl>
+                        <dl className="sub-card__detail">
+                          <dt>Started</dt>
+                          <dd>{new Date(subscription.startDate).toLocaleDateString()}</dd>
+                        </dl>
+                        <dl className="sub-card__detail">
+                          <dt>Currency</dt>
+                          <dd>{subscription.currency}</dd>
+                        </dl>
+                      </div>
+                      <div className="stack-actions">
+                        <button
+                          className="button button--primary button--wide button--sm"
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                        >
+                          Change Plan
+                        </button>
+                        {subscription.isActive && subscription.plan !== "Free" && (
+                          <button
+                            className="button button--danger button--wide button--sm"
+                            type="button"
+                            onClick={handleCancelSubscription}
+                          >
+                            Cancel Subscription
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {subscriptionHistory.length > 0 && (
+                  <div className="glass-card">
+                    <div className="section-heading section-heading--compact">
+                      <span className="eyebrow">HISTORY</span>
+                      <h2>Plan Changes</h2>
+                    </div>
+                    <div className="history-list" style={{ marginTop: "0.5rem" }}>
+                      {subscriptionHistory.map((item) => (
+                        <div className="history-item" key={item.id}>
+                          <span className="history-item__plan">{item.plan}</span>
+                          <span className="history-item__date">
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </span>
+                          <span
+                            className={`history-item__status history-item__status--${item.isActive ? "active" : "inactive"}`}
+                          >
+                            {item.isActive ? "Active" : "Ended"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {lastResponse && (
                   <div className="glass-card">
@@ -816,6 +1115,68 @@ export default function App() {
           </div>
         </div>
       ) : null}
+
+      {showUpgradeModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgradeModal(false)}>
+          <div className="upgrade-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="upgrade-modal__header">
+              <div>
+                <span className="eyebrow">SUBSCRIPTION</span>
+                <h2>Choose your plan</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowUpgradeModal(false)}>
+                ×
+              </button>
+            </div>
+            <div className="upgrade-grid">
+              {plans.map((plan) => {
+                const isCurrent = subscription?.plan === plan.name;
+                return (
+                  <div
+                    key={plan.name}
+                    className={`plan-card${isCurrent ? " plan-card--current" : ""}${plan.name === "Professional" && !isCurrent ? " plan-card--featured" : ""}`}
+                  >
+                    {plan.name === "Professional" && !isCurrent && (
+                      <span className="plan-card__badge">Popular</span>
+                    )}
+                    <div className="plan-card__name">{plan.name}</div>
+                    <div className="plan-card__price">
+                      {plan.monthlyPrice === 0 ? "Free" : `$${plan.monthlyPrice}`}
+                      {plan.monthlyPrice > 0 && <span>/mo</span>}
+                    </div>
+                    <div className="plan-card__desc">{plan.description}</div>
+                    <div className="plan-card__meta">
+                      <div className="plan-card__meta-item">
+                        <strong>{plan.maxUsers}</strong> users
+                      </div>
+                      <div className="plan-card__meta-item">
+                        <strong>{plan.rateLimitPerMinute}</strong> req/min
+                      </div>
+                    </div>
+                    <ul className="plan-card__features">
+                      {plan.features.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                    <button
+                      className={`button ${isCurrent ? "button--subtle" : "button--primary"} button--wide button--sm`}
+                      type="button"
+                      disabled={isCurrent || upgradeLoading === plan.name}
+                      onClick={() => handleUpgradePlan(plan.name)}
+                    >
+                      {isCurrent
+                        ? "Current Plan"
+                        : upgradeLoading === plan.name
+                          ? "Upgrading..."
+                          : `Switch to ${plan.name}`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
