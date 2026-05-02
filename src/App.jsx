@@ -6,6 +6,7 @@ const SESSION_STORAGE_KEY = "saasify-ui-session";
 
 const emptySession = {
   tenantId: "",
+  tenantName: "",
   userId: "",
   email: "",
   role: "",
@@ -175,6 +176,7 @@ export default function App() {
   function applySession(data) {
     setSession({
       tenantId: data.tenantId,
+      tenantName: data.tenantName,
       userId: data.userId,
       email: data.email,
       role: data.role,
@@ -677,7 +679,7 @@ export default function App() {
               <div>
                 <span className="eyebrow">PROJECT WORKSPACE</span>
                 <h1>
-                  {session.email} · Tenant {session.tenantId}
+                  {session.tenantName}
                 </h1>
                 {subscription && (
                   <div className="plan-badge" style={{ marginTop: "0.5rem" }}>
@@ -912,11 +914,7 @@ export default function App() {
                   <dl className="session-grid">
                     <div>
                       <dt>Tenant</dt>
-                      <dd>{session.tenantId}</dd>
-                    </div>
-                    <div>
-                      <dt>User</dt>
-                      <dd>{session.email}</dd>
+                      <dd>{session.tenantName}</dd>
                     </div>
                     <div>
                       <dt>Role</dt>
