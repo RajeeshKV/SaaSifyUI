@@ -77,6 +77,7 @@ export default function App() {
   const [subscriptionHistory, setSubscriptionHistory] = useState([]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [pagination, setPagination] = useState({ totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false });
@@ -154,7 +155,7 @@ export default function App() {
   const sessionExpiryLabel = useMemo(() => {
     if (!session.accessTokenExpiresAt) return "No active token";
     const date = new Date(session.accessTokenExpiresAt);
-    return Number.isNaN(date.getTime()) ? session.accessTokenExpiresAt : date.toLocaleString();
+    return Number.isNaN(date.getTime()) ? session.accessTokenExpiresAt : date.toLocaleString("en-IN");
   }, [session.accessTokenExpiresAt]);
 
   function updateAuthForm(form, field, value) {
@@ -430,6 +431,7 @@ export default function App() {
   }
 
   async function revokeSession() {
+    setSigningOut(true);
     const data = await runProtectedRequest("Revoke token", () =>
       apiRequest("/api/Auth/revoke", {
         method: "POST",
@@ -443,6 +445,7 @@ export default function App() {
     if (data !== null || apiLoading === "") {
       setSession(emptySession);
     }
+    setSigningOut(false);
   }
 
   function signOutLocally() {
@@ -537,7 +540,7 @@ export default function App() {
               <button className="nav-icon" type="button" onClick={fetchProjects} title="Refresh projects">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               </button>
-              <button className="nav-icon" type="button" onClick={revokeSession} title="Sign out">
+              <button className={`nav-icon${signingOut ? " nav-icon--loading" : ""}`} type="button" onClick={revokeSession} disabled={signingOut} title="Sign out">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
               </button>
             </>
@@ -548,6 +551,15 @@ export default function App() {
           )}
         </nav>
       </header>
+
+      {signingOut && (
+        <div className="signout-overlay">
+          <div className="signout-overlay__content">
+            <svg className="signout-spinner" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+            <span>Signing out…</span>
+          </div>
+        </div>
+      )}
 
       <main>
         {!authenticated ? (
@@ -673,7 +685,7 @@ export default function App() {
                     <span className="plan-badge__plan">{subscription.plan} Plan</span>
                     <span className="plan-badge__expiry">
                       {subscription.isActive
-                        ? `Expires ${new Date(subscription.endDate).toLocaleDateString()}`
+                        ? `Expires ${new Date(subscription.endDate).toLocaleDateString("en-IN")}`
                         : "Inactive"}
                     </span>
                   </div>
@@ -956,11 +968,11 @@ export default function App() {
                         </dl>
                         <dl className="sub-card__detail">
                           <dt>Expires</dt>
-                          <dd>{new Date(subscription.endDate).toLocaleDateString()}</dd>
+                          <dd>{new Date(subscription.endDate).toLocaleDateString("en-IN")}</dd>
                         </dl>
                         <dl className="sub-card__detail">
                           <dt>Started</dt>
-                          <dd>{new Date(subscription.startDate).toLocaleDateString()}</dd>
+                          <dd>{new Date(subscription.startDate).toLocaleDateString("en-IN")}</dd>
                         </dl>
                         <dl className="sub-card__detail">
                           <dt>Currency</dt>
@@ -1000,7 +1012,7 @@ export default function App() {
                         <div className="history-item" key={item.id}>
                           <span className="history-item__plan">{item.plan}</span>
                           <span className="history-item__date">
-                            {new Date(item.createdAt).toLocaleDateString()}
+                            {new Date(item.createdAt).toLocaleDateString("en-IN")}
                           </span>
                           <span
                             className={`history-item__status history-item__status--${item.isActive ? "active" : "inactive"}`}
