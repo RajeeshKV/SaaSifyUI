@@ -137,7 +137,7 @@ export default function App() {
     async function fetchHealth() {
       // 1. SaaSify API Health
       void fetchWithRetry(
-        () => apiClient.get("/api/health").then(res => res.data),
+        () => apiClient.get("/api/Health").then(res => res.data),
         setHealth,
         "Main API"
       );
@@ -221,22 +221,25 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const verifyToken = params.get("verify_token");
     const inviteToken = params.get("invite_token");
+    const email = params.get("email");
 
-    if (verifyToken) {
-      handleVerifyEmail(verifyToken);
+    if (verifyToken && email) {
+      handleVerifyEmail(email, verifyToken);
     }
     if (inviteToken) {
       setInviteToken(inviteToken);
+      if (email) setInviteEmail(email);
       setShowInviteModal(true);
     }
   }, []);
 
-  async function handleVerifyEmail(token) {
+  async function handleVerifyEmail(email, token) {
     setFeedback(setApiFeedback, "Verifying your email...", "neutral");
     try {
-      const data = await apiRequest(`/api/Auth/verify-email?token=${token}`, {
+      await apiRequest("/api/EmailVerification/verify", {
         method: "POST",
         headers: buildHeaders(),
+        body: JSON.stringify({ email, token })
       });
       setFeedback(setApiFeedback, "Email verified successfully! You can now use all features.", "success");
       if (isSessionActive(session)) {
@@ -256,10 +259,11 @@ export default function App() {
 
     setApiLoading("Accepting invitation");
     try {
-      const data = await apiRequest("/api/Auth/accept-invitation", {
+      await apiRequest("/api/EmailVerification/set-password", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
+          email: inviteEmail,
           token: inviteToken,
           password: inviteForm.password
         })
@@ -282,10 +286,11 @@ export default function App() {
 
     setApiLoading("Invite user");
     try {
-      await apiRequest("/api/Tenant/invite", {
+      await apiRequest("/api/Users", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
+          name: inviteEmail.split('@')[0],
           email: inviteEmail,
           role: inviteRole
         })
@@ -430,7 +435,7 @@ export default function App() {
     const data = await runProtectedRequest(
       "List projects",
       () =>
-        apiRequest(`/api/projects?pageNumber=${page}&pageSize=${size}`, {
+        apiRequest(`/api/Projects?pageNumber=${page}&pageSize=${size}`, {
           headers: getProtectedHeaders(),
         }),
       { silentSuccess: true },
@@ -517,7 +522,7 @@ export default function App() {
     if (!newProjectName.trim()) return;
 
     const data = await runProtectedRequest("Create project", () =>
-      apiRequest("/api/projects", {
+      apiRequest("/api/Projects", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({ name: newProjectName.trim() }),
@@ -538,7 +543,7 @@ export default function App() {
     }
 
     const data = await runProtectedRequest(`Update project #${projectId}`, () =>
-      apiRequest(`/api/projects/${projectId}`, {
+      apiRequest(`/api/Projects/${projectId}`, {
         method: "PUT",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
@@ -555,7 +560,7 @@ export default function App() {
 
   async function handleDeleteProject(projectId) {
     const ok = await runProtectedRequest(`Delete project #${projectId}`, () =>
-      apiRequest(`/api/projects/${projectId}`, {
+      apiRequest(`/api/Projects/${projectId}`, {
         method: "DELETE",
         headers: getProtectedHeaders(false),
       }),
@@ -736,7 +741,7 @@ export default function App() {
   async function verifyStripeSession(sessionId) {
     const data = await runProtectedRequest(
       "Verify payment",
-      () => apiRequest(`/api/stripe/verify-session?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/Stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
     );
     if (data) {
       await fetchSubscription();
