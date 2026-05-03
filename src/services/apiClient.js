@@ -1,7 +1,7 @@
 import axios from 'axios';
 import tokenManager from './tokenManager';
 
-const SAASIFY_API_URL = import.meta.env.VITE_SAASIFY_API_URL || 'https://saasifyapi.onrender.com';
+const SAASIFY_API_URL = import.meta.env.VITE_SAASIFY_API_URL || 'https://saasifyapi.rajeesh.online';
 
 const apiClient = axios.create({
   baseURL: SAASIFY_API_URL,

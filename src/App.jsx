@@ -110,31 +110,48 @@ export default function App() {
   useEffect(() => {
     let ignore = false;
 
+    async function fetchWithRetry(fn, setter, label, maxRetries = 3, delay = 2000) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const data = await fn();
+          if (!ignore) setter({ loading: false, data, error: "" });
+          return; // Success
+        } catch (error) {
+          if (i === maxRetries - 1) {
+            if (!ignore) setter({ loading: false, data: null, error: `${label} unreachable: ${error.message}` });
+          } else {
+            console.warn(`Retrying ${label} (${i + 1}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+    }
+
     async function fetchHealth() {
       // 1. SaaSify API Health
-      try {
-        const response = await apiClient.get("/api/health");
-        if (!ignore) setHealth({ loading: false, data: response.data, error: "" });
-      } catch (error) {
-        if (!ignore) setHealth({ loading: false, data: null, error: error.message });
-      }
+      void fetchWithRetry(
+        () => apiClient.get("/api/health").then(res => res.data),
+        setHealth,
+        "Main API"
+      );
 
       // 2. Render Microservice Health (Requirement)
-      try {
-        const response = await fetch("http://saasifyapi-client.rajeesh.online/health");
-        const data = await response.json();
-        if (!ignore) setMicroserviceHealth({ loading: false, data, error: "" });
-      } catch (error) {
-        if (!ignore) setMicroserviceHealth({ loading: false, data: null, error: error.message });
-      }
+      void fetchWithRetry(
+        async () => {
+          const response = await fetch("http://saasifyapi-client.rajeesh.online/health");
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
+        },
+        setMicroserviceHealth,
+        "Microservice"
+      );
 
       // 3. OrderService Health
-      try {
-        const data = await orderService.checkOrderServiceHealth();
-        if (!ignore) setOrderServiceHealth({ loading: false, data, error: "" });
-      } catch (error) {
-        if (!ignore) setOrderServiceHealth({ loading: false, data: null, error: error.message });
-      }
+      void fetchWithRetry(
+        () => orderService.checkOrderServiceHealth(),
+        setOrderServiceHealth,
+        "OrderService"
+      );
     }
 
     fetchHealth();
