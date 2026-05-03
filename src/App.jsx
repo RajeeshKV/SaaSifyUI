@@ -120,6 +120,7 @@ export default function App() {
   const [orderServiceHealth, setOrderServiceHealth] = useState({ loading: true, data: null, error: "" });
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState("projects");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -1333,10 +1334,19 @@ export default function App() {
                 {activeWorkspaceTab === 'orders' && (
                   <div className="orders-workspace" style={{ display: 'grid', gridTemplateColumns: selectedOrderId ? '1fr 1fr' : '1fr', gap: '1.5rem', height: '100%', overflow: 'hidden' }}>
                     <div className="orders-left" style={{ overflowY: 'auto', paddingRight: '0.5rem' }}>
-                      <OrderCreationForm onOrderCreated={(order) => {
-                        ErrorHandler.showNotification(`Order ${order.orderId} created!`, 'success');
-                        setSelectedOrderId(order.orderId);
-                      }} />
+                      <div className="workspace-main__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                        <div className="section-heading">
+                          <span className="eyebrow">ECOMMERCE</span>
+                          <h2>Order Management</h2>
+                        </div>
+                        <button 
+                          className="button button--primary" 
+                          onClick={() => setShowCreateOrderModal(true)}
+                          disabled={!session.isEmailVerified}
+                        >
+                          {session.isEmailVerified ? "+ Create Order" : "🔒 Verify Email to Order"}
+                        </button>
+                      </div>
                       <OrderList onViewDetails={(id) => setSelectedOrderId(id)} />
                     </div>
                     {selectedOrderId && (
@@ -1774,6 +1784,26 @@ export default function App() {
                 {apiLoading === "Invite user" ? "Sending..." : "Send Invitation"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showCreateOrderModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowCreateOrderModal(false)}>
+          <div className="auth-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal__header">
+              <div>
+                <span className="eyebrow">ECOMMERCE</span>
+                <h2>Create New Order</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowCreateOrderModal(false)}>
+                ×
+              </button>
+            </div>
+            <OrderCreationForm onOrderCreated={(newOrder) => {
+              setShowCreateOrderModal(false);
+              ErrorHandler.showNotification(`Order #${newOrder.orderId} created!`, "success");
+            }} />
           </div>
         </div>
       )}
