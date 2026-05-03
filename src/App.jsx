@@ -775,10 +775,6 @@ export default function App() {
                 <span className="health-bar__dot" />
                 <span className="health-bar__label" style={{ fontSize: '0.7rem' }}>Micro: {microserviceHealth.loading ? "..." : microserviceHealth.data ? "Online" : "Offline"}</span>
               </div>
-              <div className={`health-bar health-bar--${orderServiceHealth.data ? "online" : orderServiceHealth.loading ? "checking" : "offline"}`} style={{ border: 'none', background: 'none', padding: 0 }}>
-                <span className="health-bar__dot" />
-                <span className="health-bar__label" style={{ fontSize: '0.7rem' }}>Orders: {orderServiceHealth.loading ? "..." : orderServiceHealth.data ? "Online" : "Offline"}</span>
-              </div>
             </div>
 
             <section className="hero hero--landing" id="home">
