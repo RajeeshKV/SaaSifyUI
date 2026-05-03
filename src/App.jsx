@@ -138,7 +138,7 @@ export default function App() {
       // 2. Render Microservice Health (Requirement)
       void fetchWithRetry(
         async () => {
-          const response = await fetch("http://saasifyapi-client.rajeesh.online/health");
+          const response = await fetch("https://saasifyapi-client.rajeesh.online/health");
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           return await response.json();
         },
@@ -914,14 +914,14 @@ export default function App() {
             <div className="workspace-layout">
               <article className="workspace-main">
                 <div className="workspace-main__tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.5rem' }}>
-                  <button 
+                  <button
                     className={`tab-btn ${activeWorkspaceTab === 'projects' ? 'active' : ''}`}
                     style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'projects' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
                     onClick={() => setActiveWorkspaceTab('projects')}
                   >
                     Projects
                   </button>
-                  <button 
+                  <button
                     className={`tab-btn ${activeWorkspaceTab === 'orders' ? 'active' : ''}`}
                     style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'orders' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
                     onClick={() => setActiveWorkspaceTab('orders')}
@@ -933,230 +933,230 @@ export default function App() {
                 <div className="workspace-main__header">
                   {activeWorkspaceTab === 'projects' && (
                     <div className="toolbar">
-                    <form className="toolbar__create" onSubmit={handleCreateProject}>
-                      <input
-                        value={newProjectName}
-                        onChange={(event) => setNewProjectName(event.target.value)}
-                        placeholder="New project name..."
-                      />
-                      <button
-                        className="button button--primary button--sm"
-                        disabled={apiLoading === "Create project" || !newProjectName.trim()}
-                      >
-                        {apiLoading === "Create project" ? "Creating..." : "Add"}
-                      </button>
-                    </form>
+                      <form className="toolbar__create" onSubmit={handleCreateProject}>
+                        <input
+                          value={newProjectName}
+                          onChange={(event) => setNewProjectName(event.target.value)}
+                          placeholder="New project name..."
+                        />
+                        <button
+                          className="button button--primary button--sm"
+                          disabled={apiLoading === "Create project" || !newProjectName.trim()}
+                        >
+                          {apiLoading === "Create project" ? "Creating..." : "Add"}
+                        </button>
+                      </form>
 
-                    {selectedCount > 0 && (
-                      <div className="bulk-bar">
-                        <span className="bulk-bar__count">{selectedCount}</span> selected
-                        <button
-                          className="button button--ghost button--sm"
-                          type="button"
-                          onClick={handleBulkUpdate}
-                        >
-                          Update Selected
-                        </button>
-                        <button
-                          className="button button--danger button--sm"
-                          type="button"
-                          onClick={handleBulkDelete}
-                        >
-                          Delete Selected
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                      {selectedCount > 0 && (
+                        <div className="bulk-bar">
+                          <span className="bulk-bar__count">{selectedCount}</span> selected
+                          <button
+                            className="button button--ghost button--sm"
+                            type="button"
+                            onClick={handleBulkUpdate}
+                          >
+                            Update Selected
+                          </button>
+                          <button
+                            className="button button--danger button--sm"
+                            type="button"
+                            onClick={handleBulkDelete}
+                          >
+                            Delete Selected
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {activeWorkspaceTab === 'projects' && (
                   <>
 
-                {apiFeedback.message ? (
-                  <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
-                ) : null}
+                    {apiFeedback.message ? (
+                      <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
+                    ) : null}
 
-                <div className="data-grid-wrap">
-                  {projectsLoading && projects.length === 0 ? (
-                    <div className="empty-state">Loading projects...</div>
-                  ) : projects.length === 0 ? (
-                    <div className="empty-state">
-                      No projects yet. Create one above to populate the grid.
+                    <div className="data-grid-wrap">
+                      {projectsLoading && projects.length === 0 ? (
+                        <div className="empty-state">Loading projects...</div>
+                      ) : projects.length === 0 ? (
+                        <div className="empty-state">
+                          No projects yet. Create one above to populate the grid.
+                        </div>
+                      ) : (
+                        <table className="data-grid">
+                          <thead>
+                            <tr>
+                              <th>
+                                <input
+                                  type="checkbox"
+                                  className="grid-checkbox"
+                                  checked={allSelected}
+                                  onChange={toggleSelectAll}
+                                  title="Select all"
+                                />
+                              </th>
+                              <th className="col-id">ID</th>
+                              <th className="col-name">Name</th>
+                              <th className="col-actions">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {projects.map((project) => (
+                              <tr
+                                key={project.id}
+                                className={selectedProjectIds.includes(project.id) ? "row--selected" : ""}
+                              >
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    className="grid-checkbox"
+                                    checked={selectedProjectIds.includes(project.id)}
+                                    onChange={() => toggleProjectSelection(project.id)}
+                                  />
+                                </td>
+                                <td className="col-id">#{project.id}</td>
+                                <td className="col-name">
+                                  <input
+                                    value={projectDrafts[project.id] ?? project.name}
+                                    onChange={(event) =>
+                                      setProjectDrafts((current) => ({
+                                        ...current,
+                                        [project.id]: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </td>
+                                <td className="col-actions">
+                                  <div className="row-actions">
+                                    <button
+                                      className="button button--ghost button--sm"
+                                      type="button"
+                                      onClick={() => handleInlineUpdate(project.id)}
+                                      disabled={apiLoading === `Update project #${project.id}`}
+                                    >
+                                      {apiLoading === `Update project #${project.id}` ? "Saving..." : "Save"}
+                                    </button>
+                                    <button
+                                      className="button button--danger button--sm"
+                                      type="button"
+                                      onClick={() => handleDeleteProject(project.id)}
+                                      disabled={apiLoading === `Delete project #${project.id}`}
+                                    >
+                                      {apiLoading === `Delete project #${project.id}` ? "..." : "Delete"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
-                  ) : (
-                    <table className="data-grid">
-                      <thead>
-                        <tr>
-                          <th>
-                            <input
-                              type="checkbox"
-                              className="grid-checkbox"
-                              checked={allSelected}
-                              onChange={toggleSelectAll}
-                              title="Select all"
-                            />
-                          </th>
-                          <th className="col-id">ID</th>
-                          <th className="col-name">Name</th>
-                          <th className="col-actions">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {projects.map((project) => (
-                          <tr
-                            key={project.id}
-                            className={selectedProjectIds.includes(project.id) ? "row--selected" : ""}
+
+                    {pagination.totalItems > 0 && (
+                      <div className="pagination-bar">
+                        <div className="pagination-bar__info">
+                          <strong>{pagination.totalItems}</strong> project{pagination.totalItems !== 1 ? "s" : ""}
+                          {" · "}Page <strong>{pageNumber}</strong> of <strong>{pagination.totalPages}</strong>
+                        </div>
+                        <div className="pagination-bar__controls">
+                          <select
+                            className="page-size-select"
+                            value={pageSize}
+                            onChange={(e) => {
+                              const newSize = Number(e.target.value);
+                              setPageSize(newSize);
+                              setPageNumber(1);
+                              fetchProjects(1, newSize);
+                            }}
                           >
-                            <td>
-                              <input
-                                type="checkbox"
-                                className="grid-checkbox"
-                                checked={selectedProjectIds.includes(project.id)}
-                                onChange={() => toggleProjectSelection(project.id)}
-                              />
-                            </td>
-                            <td className="col-id">#{project.id}</td>
-                            <td className="col-name">
-                              <input
-                                value={projectDrafts[project.id] ?? project.name}
-                                onChange={(event) =>
-                                  setProjectDrafts((current) => ({
-                                    ...current,
-                                    [project.id]: event.target.value,
-                                  }))
-                                }
-                              />
-                            </td>
-                            <td className="col-actions">
-                              <div className="row-actions">
-                                <button
-                                  className="button button--ghost button--sm"
-                                  type="button"
-                                  onClick={() => handleInlineUpdate(project.id)}
-                                  disabled={apiLoading === `Update project #${project.id}`}
-                                >
-                                  {apiLoading === `Update project #${project.id}` ? "Saving..." : "Save"}
-                                </button>
-                                <button
-                                  className="button button--danger button--sm"
-                                  type="button"
-                                  onClick={() => handleDeleteProject(project.id)}
-                                  disabled={apiLoading === `Delete project #${project.id}`}
-                                >
-                                  {apiLoading === `Delete project #${project.id}` ? "..." : "Delete"}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-
-                {pagination.totalItems > 0 && (
-                  <div className="pagination-bar">
-                    <div className="pagination-bar__info">
-                      <strong>{pagination.totalItems}</strong> project{pagination.totalItems !== 1 ? "s" : ""}
-                      {" · "}Page <strong>{pageNumber}</strong> of <strong>{pagination.totalPages}</strong>
-                    </div>
-                    <div className="pagination-bar__controls">
-                      <select
-                        className="page-size-select"
-                        value={pageSize}
-                        onChange={(e) => {
-                          const newSize = Number(e.target.value);
-                          setPageSize(newSize);
-                          setPageNumber(1);
-                          fetchProjects(1, newSize);
-                        }}
-                      >
-                        <option value={10}>10 / page</option>
-                        <option value={25}>25 / page</option>
-                        <option value={50}>50 / page</option>
-                      </select>
-                      <div className="pagination-bar__pages">
-                        <button
-                          className="page-btn"
-                          type="button"
-                          disabled={!pagination.hasPreviousPage}
-                          onClick={() => fetchProjects(1, pageSize)}
-                        >
-                          ««
-                        </button>
-                        <button
-                          className="page-btn"
-                          type="button"
-                          disabled={!pagination.hasPreviousPage}
-                          onClick={() => fetchProjects(pageNumber - 1, pageSize)}
-                        >
-                          ‹
-                        </button>
-                        {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => {
-                          let start = Math.max(1, pageNumber - 2);
-                          if (start + 4 > pagination.totalPages) start = Math.max(1, pagination.totalPages - 4);
-                          const pg = start + i;
-                          if (pg > pagination.totalPages) return null;
-                          return (
+                            <option value={10}>10 / page</option>
+                            <option value={25}>25 / page</option>
+                            <option value={50}>50 / page</option>
+                          </select>
+                          <div className="pagination-bar__pages">
                             <button
-                              key={pg}
-                              className={`page-btn${pg === pageNumber ? " page-btn--active" : ""}`}
+                              className="page-btn"
                               type="button"
-                              onClick={() => fetchProjects(pg, pageSize)}
+                              disabled={!pagination.hasPreviousPage}
+                              onClick={() => fetchProjects(1, pageSize)}
                             >
-                              {pg}
+                              ««
                             </button>
-                          );
-                        })}
-                        <button
-                          className="page-btn"
-                          type="button"
-                          disabled={!pagination.hasNextPage}
-                          onClick={() => fetchProjects(pageNumber + 1, pageSize)}
-                        >
-                          ›
-                        </button>
-                        <button
-                          className="page-btn"
-                          type="button"
-                          disabled={!pagination.hasNextPage}
-                          onClick={() => fetchProjects(pagination.totalPages, pageSize)}
-                        >
-                          »»
-                        </button>
+                            <button
+                              className="page-btn"
+                              type="button"
+                              disabled={!pagination.hasPreviousPage}
+                              onClick={() => fetchProjects(pageNumber - 1, pageSize)}
+                            >
+                              ‹
+                            </button>
+                            {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => {
+                              let start = Math.max(1, pageNumber - 2);
+                              if (start + 4 > pagination.totalPages) start = Math.max(1, pagination.totalPages - 4);
+                              const pg = start + i;
+                              if (pg > pagination.totalPages) return null;
+                              return (
+                                <button
+                                  key={pg}
+                                  className={`page-btn${pg === pageNumber ? " page-btn--active" : ""}`}
+                                  type="button"
+                                  onClick={() => fetchProjects(pg, pageSize)}
+                                >
+                                  {pg}
+                                </button>
+                              );
+                            })}
+                            <button
+                              className="page-btn"
+                              type="button"
+                              disabled={!pagination.hasNextPage}
+                              onClick={() => fetchProjects(pageNumber + 1, pageSize)}
+                            >
+                              ›
+                            </button>
+                            <button
+                              className="page-btn"
+                              type="button"
+                              disabled={!pagination.hasNextPage}
+                              onClick={() => fetchProjects(pagination.totalPages, pageSize)}
+                            >
+                              »»
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
 
                 {activeWorkspaceTab === 'orders' && (
-                <div className="orders-workspace" style={{ display: 'grid', gridTemplateColumns: selectedOrderId ? '1fr 1fr' : '1fr', gap: '1.5rem', height: '100%', overflow: 'hidden' }}>
-                  <div className="orders-left" style={{ overflowY: 'auto', paddingRight: '0.5rem' }}>
-                    <OrderCreationForm onOrderCreated={(order) => {
-                      ErrorHandler.showNotification(`Order ${order.orderId} created!`, 'success');
-                      setSelectedOrderId(order.orderId);
-                    }} />
-                    <OrderList onViewDetails={(id) => setSelectedOrderId(id)} />
-                  </div>
-                  {selectedOrderId && (
-                    <div className="orders-right" style={{ overflowY: 'auto' }}>
-                      <div className="card-header" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                        <button 
-                          className="button button--ghost button--small" 
-                          onClick={() => setSelectedOrderId(null)}
-                        >
-                          Close Details
-                        </button>
-                      </div>
-                      <OrderStatusTracker orderId={selectedOrderId} />
+                  <div className="orders-workspace" style={{ display: 'grid', gridTemplateColumns: selectedOrderId ? '1fr 1fr' : '1fr', gap: '1.5rem', height: '100%', overflow: 'hidden' }}>
+                    <div className="orders-left" style={{ overflowY: 'auto', paddingRight: '0.5rem' }}>
+                      <OrderCreationForm onOrderCreated={(order) => {
+                        ErrorHandler.showNotification(`Order ${order.orderId} created!`, 'success');
+                        setSelectedOrderId(order.orderId);
+                      }} />
+                      <OrderList onViewDetails={(id) => setSelectedOrderId(id)} />
                     </div>
-                  )}
-                </div>
-              )}
-            </article>
+                    {selectedOrderId && (
+                      <div className="orders-right" style={{ overflowY: 'auto' }}>
+                        <div className="card-header" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                          <button
+                            className="button button--ghost button--small"
+                            onClick={() => setSelectedOrderId(null)}
+                          >
+                            Close Details
+                          </button>
+                        </div>
+                        <OrderStatusTracker orderId={selectedOrderId} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
 
               <aside className="workspace-side">
                 <div className="glass-card">
