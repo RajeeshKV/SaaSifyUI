@@ -22,6 +22,7 @@ const emptySession = {
   token: "",
   refreshToken: "",
   accessTokenExpiresAt: "",
+  isEmailVerified: false,
 };
 
 const initialAuthForms = {
@@ -31,6 +32,7 @@ const initialAuthForms = {
   },
   register: {
     tenantName: "",
+    name: "",
     email: "",
     password: "",
   },
@@ -95,6 +97,11 @@ export default function App() {
   const [rbacStatus, setRbacStatus] = useState([]);
   const [rbacLoading, setRbacLoading] = useState(false);
   const [isStripeLoading, setIsStripeLoading] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ password: "", confirmPassword: "" });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("User");
 
   // New states for Orders and Health
   const [microserviceHealth, setMicroserviceHealth] = useState({ loading: true, data: null, error: "" });
@@ -210,6 +217,88 @@ export default function App() {
     }
   }, [session.token, session.tenantId]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get("verify_token");
+    const inviteToken = params.get("invite_token");
+
+    if (verifyToken) {
+      handleVerifyEmail(verifyToken);
+    }
+    if (inviteToken) {
+      setInviteToken(inviteToken);
+      setShowInviteModal(true);
+    }
+  }, []);
+
+  async function handleVerifyEmail(token) {
+    setFeedback(setApiFeedback, "Verifying your email...", "neutral");
+    try {
+      const data = await apiRequest(`/api/Auth/verify-email?token=${token}`, {
+        method: "POST",
+        headers: buildHeaders(),
+      });
+      setFeedback(setApiFeedback, "Email verified successfully! You can now use all features.", "success");
+      if (isSessionActive(session)) {
+        setSession(prev => ({ ...prev, isEmailVerified: true }));
+      }
+    } catch (error) {
+      setFeedback(setApiFeedback, `Verification failed: ${error.message}`, "error");
+    }
+  }
+
+  async function handleInviteSubmit(e) {
+    e.preventDefault();
+    if (inviteForm.password !== inviteForm.confirmPassword) {
+      ErrorHandler.showNotification("Passwords do not match", "error");
+      return;
+    }
+
+    setApiLoading("Accepting invitation");
+    try {
+      const data = await apiRequest("/api/Auth/accept-invitation", {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({
+          token: inviteToken,
+          password: inviteForm.password
+        })
+      });
+      ErrorHandler.showNotification("Invitation accepted! You can now log in.", "success");
+      setShowInviteModal(false);
+      window.history.replaceState({}, document.title, "/");
+      setShowAuthModal(true);
+      setActiveTab("login");
+    } catch (error) {
+      ErrorHandler.showNotification(error.message, "error");
+    } finally {
+      setApiLoading("");
+    }
+  }
+
+  async function handleInviteUser(e) {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+
+    setApiLoading("Invite user");
+    try {
+      await apiRequest("/api/Tenant/invite", {
+        method: "POST",
+        headers: getProtectedHeaders(),
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole
+        })
+      });
+      ErrorHandler.showNotification(`Invitation sent to ${inviteEmail}`, "success");
+      setInviteEmail("");
+    } catch (error) {
+      ErrorHandler.showNotification(error.message, "error");
+    } finally {
+      setApiLoading("");
+    }
+  }
+
   const permissions = useMemo(() => {
     if (!session.token) return [];
     try {
@@ -279,6 +368,7 @@ export default function App() {
       token: data.token,
       refreshToken: data.refreshToken,
       accessTokenExpiresAt: data.accessTokenExpiresAt,
+      isEmailVerified: data.isEmailVerified || false,
     });
   }
 
@@ -388,7 +478,7 @@ export default function App() {
         setAuthFeedback,
         isLogin
           ? "Login successful. Redirecting you into the API workspace."
-          : "Tenant created. You are now inside the workspace.",
+          : "Registration successful! Please check your email to verify your account. Some features will be restricted until verified.",
         "success",
       );
 
@@ -916,57 +1006,106 @@ export default function App() {
                 <div className="workspace-main__tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.5rem' }}>
                   <button
                     className={`tab-btn ${activeWorkspaceTab === 'projects' ? 'active' : ''}`}
-                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'projects' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
+                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'projects' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                     onClick={() => setActiveWorkspaceTab('projects')}
                   >
                     Projects
+                    {!session.isEmailVerified && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
                   </button>
                   <button
                     className={`tab-btn ${activeWorkspaceTab === 'orders' ? 'active' : ''}`}
-                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'orders' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
+                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'orders' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                     onClick={() => setActiveWorkspaceTab('orders')}
                   >
                     Orders
+                    {!session.isEmailVerified && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
                   </button>
+                  {session.role === 'TenantAdmin' && (
+                    <button
+                      className={`tab-btn ${activeWorkspaceTab === 'users' ? 'active' : ''}`}
+                      style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'users' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
+                      onClick={() => setActiveWorkspaceTab('users')}
+                    >
+                      Users
+                    </button>
+                  )}
                 </div>
 
                 <div className="workspace-main__header">
-                  {activeWorkspaceTab === 'projects' && (
-                    <div className="toolbar">
-                      <form className="toolbar__create" onSubmit={handleCreateProject}>
-                        <input
-                          value={newProjectName}
-                          onChange={(event) => setNewProjectName(event.target.value)}
-                          placeholder="New project name..."
-                        />
-                        <button
-                          className="button button--primary button--sm"
-                          disabled={apiLoading === "Create project" || !newProjectName.trim()}
-                        >
-                          {apiLoading === "Create project" ? "Creating..." : "Add"}
-                        </button>
-                      </form>
+                  {!session.isEmailVerified && (activeWorkspaceTab === 'projects' || activeWorkspaceTab === 'orders') ? (
+                    <div className="notice notice--warning" style={{ margin: 0, width: '100%' }}>
+                      <strong>Email Verification Required</strong><br />
+                      Please verify your email address to enable project and order management.
+                    </div>
+                  ) : (
+                    <>
+                      {activeWorkspaceTab === 'projects' && (
+                        <div className="toolbar">
+                          <form className="toolbar__create" onSubmit={handleCreateProject}>
+                            <input
+                              value={newProjectName}
+                              onChange={(event) => setNewProjectName(event.target.value)}
+                              placeholder="New project name..."
+                            />
+                            <button
+                              className="button button--primary button--sm"
+                              disabled={apiLoading === "Create project" || !newProjectName.trim()}
+                            >
+                              {apiLoading === "Create project" ? "Creating..." : "Add"}
+                            </button>
+                          </form>
 
-                      {selectedCount > 0 && (
-                        <div className="bulk-bar">
-                          <span className="bulk-bar__count">{selectedCount}</span> selected
-                          <button
-                            className="button button--ghost button--sm"
-                            type="button"
-                            onClick={handleBulkUpdate}
-                          >
-                            Update Selected
-                          </button>
-                          <button
-                            className="button button--danger button--sm"
-                            type="button"
-                            onClick={handleBulkDelete}
-                          >
-                            Delete Selected
-                          </button>
+                          {selectedCount > 0 && (
+                            <div className="bulk-bar">
+                              <span className="bulk-bar__count">{selectedCount}</span> selected
+                              <button
+                                className="button button--ghost button--sm"
+                                type="button"
+                                onClick={handleBulkUpdate}
+                              >
+                                Update Selected
+                              </button>
+                              <button
+                                className="button button--danger button--sm"
+                                type="button"
+                                onClick={handleBulkDelete}
+                              >
+                                Delete Selected
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+
+                      {activeWorkspaceTab === 'users' && (
+                        <div className="toolbar">
+                          <form className="toolbar__create" onSubmit={handleInviteUser}>
+                            <input
+                              type="email"
+                              value={inviteEmail}
+                              onChange={(e) => setInviteEmail(e.target.value)}
+                              placeholder="colleague@example.com"
+                              required
+                            />
+                            <select 
+                              value={inviteRole} 
+                              onChange={(e) => setInviteRole(e.target.value)}
+                              className="page-size-select"
+                              style={{ width: 'auto', marginRight: '0.5rem' }}
+                            >
+                              <option value="User">User</option>
+                              <option value="TenantAdmin">Admin</option>
+                            </select>
+                            <button
+                              className="button button--primary button--sm"
+                              disabled={apiLoading === "Invite user" || !inviteEmail.trim()}
+                            >
+                              {apiLoading === "Invite user" ? "Inviting..." : "Invite User"}
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -1154,6 +1293,20 @@ export default function App() {
                         <OrderStatusTracker orderId={selectedOrderId} />
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeWorkspaceTab === 'users' && (
+                  <div className="users-workspace">
+                    <div className="notice notice--neutral">
+                      <strong>User Management</strong><br />
+                      Manage your team members and their roles within this tenant.
+                    </div>
+                    <div className="empty-state" style={{ marginTop: '2rem' }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '1rem', opacity: 0.3 }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      <p>Currently showing invited users and active members.</p>
+                      <p className="small muted">Use the toolbar above to invite new members to your tenant.</p>
+                    </div>
                   </div>
                 )}
               </article>
@@ -1402,15 +1555,26 @@ export default function App() {
 
             <form className="form-grid" onSubmit={handleAuthSubmit}>
               {activeTab === "register" && (
-                <label>
-                  <span>Tenant name</span>
-                  <input
-                    value={authForms.register.tenantName}
-                    onChange={(event) => updateAuthForm("register", "tenantName", event.target.value)}
-                    placeholder="Acme Labs"
-                    required
-                  />
-                </label>
+                <>
+                  <label>
+                    <span>Tenant name</span>
+                    <input
+                      value={authForms.register.tenantName}
+                      onChange={(event) => updateAuthForm("register", "tenantName", event.target.value)}
+                      placeholder="Acme Labs"
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Your Name</span>
+                    <input
+                      value={authForms.register.name}
+                      onChange={(event) => updateAuthForm("register", "name", event.target.value)}
+                      placeholder="John Doe"
+                      required
+                    />
+                  </label>
+                </>
               )}
 
               <label>
@@ -1512,6 +1676,48 @@ export default function App() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showInviteModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowInviteModal(false)}>
+          <div className="auth-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal__header">
+              <div>
+                <span className="eyebrow">INVITATION</span>
+                <h2>Join your team</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowInviteModal(false)}>
+                ×
+              </button>
+            </div>
+            <p className="muted" style={{ marginBottom: '1.5rem' }}>Please set your password to complete your account setup.</p>
+            <form className="form-grid" onSubmit={handleInviteSubmit}>
+              <label>
+                <span>New Password</span>
+                <input
+                  type="password"
+                  value={inviteForm.password}
+                  onChange={(e) => setInviteForm(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="********"
+                  required
+                />
+              </label>
+              <label>
+                <span>Confirm Password</span>
+                <input
+                  type="password"
+                  value={inviteForm.confirmPassword}
+                  onChange={(e) => setInviteForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  placeholder="********"
+                  required
+                />
+              </label>
+              <button className="button button--primary button--wide" disabled={apiLoading === "Accepting invitation"}>
+                {apiLoading === "Accepting invitation" ? "Processing..." : "Set Password & Log In"}
+              </button>
+            </form>
           </div>
         </div>
       )}
