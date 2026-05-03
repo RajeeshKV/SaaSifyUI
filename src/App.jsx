@@ -342,8 +342,8 @@ export default function App() {
       try {
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         if (payload.IsEmailVerified !== undefined) {
-          // Handle both boolean and string "true"/"false" from JWT
-          return payload.IsEmailVerified === true || payload.IsEmailVerified === "true";
+          // Handle boolean, lowercase "true", or capitalized "True" from JWT
+          return String(payload.IsEmailVerified).toLowerCase() === "true";
         }
       } catch (e) {}
     }
@@ -1410,6 +1410,16 @@ export default function App() {
                   </div>
 
                   <div className="stack-actions">
+                    {permissions.includes("tenant.admin") && (
+                      <button 
+                        className="button button--primary button--wide button--sm" 
+                        type="button" 
+                        onClick={() => setShowInviteUserModal(true)}
+                        style={{ marginBottom: "0.5rem" }}
+                      >
+                        + Add Team Member
+                      </button>
+                    )}
                     <button className="button button--ghost button--wide button--sm" type="button" onClick={refreshSession}>
                       Refresh Token
                     </button>
@@ -1553,21 +1563,6 @@ export default function App() {
                       )}
                     </div>
 
-                    <div className="glass-card">
-                      <div className="section-heading section-heading--compact">
-                        <span className="eyebrow">ADMIN</span>
-                        <h2>Team Management</h2>
-                      </div>
-                      <p className="muted small" style={{ marginBottom: "1rem" }}>
-                        Manage your tenant members and their access levels.
-                      </p>
-                      <button 
-                        className="button button--primary button--wide button--sm"
-                        onClick={() => setShowInviteUserModal(true)}
-                      >
-                        + Add Team Member
-                      </button>
-                    </div>
                   </>
                 )}
               </aside>
