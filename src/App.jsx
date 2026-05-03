@@ -82,6 +82,10 @@ export default function App() {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [pagination, setPagination] = useState({ totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false });
+  const [tenantSettings, setTenantSettings] = useState(null);
+  const [rbacStatus, setRbacStatus] = useState([]);
+  const [rbacLoading, setRbacLoading] = useState(false);
+  const [isStripeLoading, setIsStripeLoading] = useState("");
 
   useEffect(() => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
@@ -115,14 +119,36 @@ export default function App() {
       void fetchProjects();
       void fetchSubscription();
       void fetchSubscriptionHistory();
+      void fetchTenantSettings();
+      void fetchRbacStatus();
     } else {
       setProjects([]);
       setProjectDrafts({});
       setSelectedProjectIds([]);
       setSubscription(null);
       setSubscriptionHistory([]);
+      setTenantSettings(null);
+      setRbacStatus([]);
     }
   }, [session.token, session.tenantId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (sessionId && isSessionActive(session)) {
+      void verifyStripeSession(sessionId);
+    }
+  }, [session.token, session.tenantId]);
+
+  const permissions = useMemo(() => {
+    if (!session.token) return [];
+    try {
+      const payload = JSON.parse(atob(session.token.split(".")[1]));
+      return payload.permission || [];
+    } catch {
+      return [];
+    }
+  }, [session.token]);
 
   useEffect(() => {
     let ignore = false;
@@ -503,6 +529,101 @@ export default function App() {
     }
   }
 
+  async function fetchTenantSettings() {
+    const data = await runProtectedRequest(
+      "Get tenant settings",
+      () => apiRequest("/api/tenant-settings", { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+    if (data) setTenantSettings(data);
+  }
+
+  async function updateTenantSettings(updated) {
+    const data = await runProtectedRequest("Update settings", () =>
+      apiRequest("/api/tenant-settings", {
+        method: "PUT",
+        headers: getProtectedHeaders(),
+        body: JSON.stringify(updated),
+      }),
+    );
+    if (data) setTenantSettings(data);
+  }
+
+  async function handleCreateStripeSession(planId) {
+    setIsStripeLoading(planId);
+    const data = await runProtectedRequest(`Checkout ${planId}`, () =>
+      apiRequest("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: getProtectedHeaders(),
+        body: JSON.stringify({ planId }),
+      }),
+    );
+    setIsStripeLoading("");
+    if (data?.checkoutUrl) {
+      window.location.href = data.checkoutUrl;
+    }
+  }
+
+  async function handleOpenCustomerPortal() {
+    const data = await runProtectedRequest("Customer portal", () =>
+      apiRequest("/api/stripe/customer-portal", { headers: getProtectedHeaders() }),
+    );
+    if (data?.portalUrl) {
+      window.location.href = data.portalUrl;
+    }
+  }
+
+  async function verifyStripeSession(sessionId) {
+    const data = await runProtectedRequest(
+      "Verify payment",
+      () => apiRequest(`/api/stripe/verify-session?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
+    );
+    if (data) {
+      await fetchSubscription();
+      await fetchSubscriptionHistory();
+      // Clear URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+
+  async function fetchRbacStatus() {
+    if (!permissions.includes("tenant.admin")) return;
+    const data = await runProtectedRequest(
+      "RBAC status",
+      () => apiRequest("/api/rbac-migration/status", { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+    if (data?.status) setRbacStatus(data.status);
+  }
+
+  async function handleRbacMigrate() {
+    setRbacLoading(true);
+    const data = await runProtectedRequest("RBAC migration", () =>
+      apiRequest("/api/rbac-migration/migrate", {
+        method: "POST",
+        headers: getProtectedHeaders(),
+      }),
+    );
+    setRbacLoading(false);
+    if (data) await fetchRbacStatus();
+  }
+
+  async function checkFeature(feature) {
+    return await runProtectedRequest(
+      `Check ${feature}`,
+      () => apiRequest(`/api/tenant-settings/features/${feature}`, { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+  }
+
+  async function checkLimit(resource, currentUsage) {
+    return await runProtectedRequest(
+      `Check ${resource} limit`,
+      () => apiRequest(`/api/tenant-settings/limits/${resource}?currentUsage=${currentUsage}`, { headers: getProtectedHeaders() }),
+      { silentSuccess: true },
+    );
+  }
+
   function toggleProjectSelection(projectId) {
     setSelectedProjectIds((current) =>
       current.includes(projectId)
@@ -700,6 +821,11 @@ export default function App() {
                 <button className="button button--ghost button--sm" type="button" onClick={() => setShowUpgradeModal(true)}>
                   Upgrade Plan
                 </button>
+                {subscription?.isActive && subscription?.plan !== "Free" && (
+                  <button className="button button--ghost button--sm" type="button" onClick={handleOpenCustomerPortal}>
+                    Billing Portal
+                  </button>
+                )}
                 <button className="button button--ghost button--sm" type="button" onClick={refreshSession}>
                   Refresh Token
                 </button>
@@ -920,6 +1046,18 @@ export default function App() {
                       <dt>Role</dt>
                       <dd>{session.role}</dd>
                     </div>
+                    {permissions.length > 0 && (
+                      <div className="permissions-list">
+                        <dt>Permissions</dt>
+                        <dd>
+                          {permissions.map((p) => (
+                            <span key={p} className="permission-tag">
+                              {p.replace(".", " ")}
+                            </span>
+                          ))}
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Expires</dt>
                       <dd>{sessionExpiryLabel}</dd>
@@ -1039,6 +1177,65 @@ export default function App() {
                     <pre>{API_BASE_URL}</pre>
                   </div>
                 </div>
+
+                {permissions.includes("tenant.admin") && (
+                  <>
+                    <div className="glass-card">
+                      <div className="section-heading section-heading--compact">
+                        <span className="eyebrow">ADMIN</span>
+                        <h2>Tenant Settings</h2>
+                      </div>
+                      {tenantSettings ? (
+                        <div className="settings-grid">
+                          <label className="setting-toggle">
+                            <input
+                              type="checkbox"
+                              checked={tenantSettings.enableAdvancedFeatures}
+                              onChange={(e) => updateTenantSettings({ ...tenantSettings, enableAdvancedFeatures: e.target.checked })}
+                            />
+                            <span>Advanced Features</span>
+                          </label>
+                          <label className="setting-toggle">
+                            <input
+                              type="checkbox"
+                              checked={tenantSettings.enableApiAccess}
+                              onChange={(e) => updateTenantSettings({ ...tenantSettings, enableApiAccess: e.target.checked })}
+                            />
+                            <span>API Access</span>
+                          </label>
+                          <div className="setting-limit">
+                            <span className="muted">Max Projects:</span>
+                            <strong>{tenantSettings.maxProjects}</strong>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="muted small">Loading settings...</div>
+                      )}
+                    </div>
+
+                    <div className="glass-card">
+                      <div className="section-heading section-heading--compact">
+                        <span className="eyebrow">SYSTEM</span>
+                        <h2>RBAC Migration</h2>
+                      </div>
+                      <div className="history-list history-list--compact">
+                        {rbacStatus.map((s, i) => (
+                          <div key={i} className={`history-item ${s.includes("Not") ? "history-item--warning" : "history-item--success"}`}>
+                            {s}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        className="button button--primary button--wide button--sm"
+                        style={{ marginTop: "1rem" }}
+                        disabled={rbacLoading || !rbacStatus.some((s) => s.includes("Not"))}
+                        onClick={handleRbacMigrate}
+                      >
+                        {rbacLoading ? "Migrating..." : "Run Migration"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </aside>
             </div>
           </>
@@ -1171,13 +1368,16 @@ export default function App() {
                     <button
                       className={`button ${isCurrent ? "button--subtle" : "button--primary"} button--wide button--sm`}
                       type="button"
-                      disabled={isCurrent || upgradeLoading === plan.name}
-                      onClick={() => handleUpgradePlan(plan.name)}
+                      disabled={isCurrent || upgradeLoading === plan.name || isStripeLoading === plan.name}
+                      onClick={() => {
+                        if (plan.name === "Free") handleUpgradePlan(plan.name);
+                        else handleCreateStripeSession(plan.name);
+                      }}
                     >
                       {isCurrent
                         ? "Current Plan"
-                        : upgradeLoading === plan.name
-                          ? "Upgrading..."
+                        : (upgradeLoading === plan.name || isStripeLoading === plan.name)
+                          ? "Processing..."
                           : `Switch to ${plan.name}`}
                     </button>
                   </div>
