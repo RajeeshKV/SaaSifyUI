@@ -8,16 +8,25 @@ const apiClient = axios.create({
   timeout: 10000
 });
 
-// Request Interceptor - Add JWT Token
-const addAuthHeader = (config) => {
+// Request Interceptor - Add Auth and Tenant Headers
+const addAuthHeaders = (config) => {
   const token = tokenManager.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  const { tenant } = tokenManager.getCurrentUser();
+  if (tenant) {
+    // Handle both object {id} or direct ID value
+    const tenantId = typeof tenant === 'object' ? tenant.id : tenant;
+    if (tenantId) {
+      config.headers['X-Tenant-Id'] = String(tenantId);
+    }
+  }
   return config;
 };
 
-apiClient.interceptors.request.use(addAuthHeader);
+apiClient.interceptors.request.use(addAuthHeaders);
 
 // Token Refresh Logic
 const refreshAccessToken = async () => {

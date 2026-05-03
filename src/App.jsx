@@ -397,6 +397,15 @@ export default function App() {
   function applySession(data) {
     if (!data.token) return;
 
+    // Sync with tokenManager for external services (OrderService, etc)
+    if (tokenManager) {
+      tokenManager.setTokens(data.token, data.refreshToken);
+      tokenManager.setCurrentUser(
+        { email: data.email, role: data.role },
+        data.tenantId
+      );
+    }
+
     const isVerified = getVerificationStatus(data);
     const newSession = {
       tenantId: data.tenantId,
