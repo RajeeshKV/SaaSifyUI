@@ -1,4 +1,4 @@
-const ORDERSERVICE_API_URL = import.meta.env.VITE_ORDERSERVICE_API_URL || 'https://orderservice.onrender.com';
+const ORDERSERVICE_API_URL = import.meta.env.VITE_ORDERSERVICE_API_URL || 'https://saasifyapi-client.rajeesh.online';
 
 export class OrderWebSocket {
   constructor(token) {
@@ -11,24 +11,24 @@ export class OrderWebSocket {
 
   connect() {
     const wsUrl = `${ORDERSERVICE_API_URL.replace('http', 'ws')}/ws/orders?token=${this.token}`;
-    
+
     this.ws = new WebSocket(wsUrl);
-    
+
     this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
     };
-    
+
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this.handleMessage(data);
     };
-    
+
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
       this.attemptReconnect();
     };
-    
+
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };

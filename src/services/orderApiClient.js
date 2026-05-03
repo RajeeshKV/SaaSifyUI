@@ -1,7 +1,7 @@
 import axios from 'axios';
 import tokenManager from './tokenManager';
 
-const ORDERSERVICE_API_URL = import.meta.env.VITE_ORDERSERVICE_API_URL || 'https://orderservice.onrender.com';
+const ORDERSERVICE_API_URL = import.meta.env.VITE_ORDERSERVICE_API_URL || 'https://saasifyapi-client.rajeesh.online';
 
 const orderApiClient = axios.create({
   baseURL: ORDERSERVICE_API_URL,

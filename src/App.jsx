@@ -692,7 +692,7 @@ export default function App() {
   async function fetchTenantSettings() {
     const data = await runProtectedRequest(
       "Get tenant settings",
-      () => apiRequest("/api/tenant-settings", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/TenantSettings", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data) setTenantSettings(data);
@@ -700,7 +700,7 @@ export default function App() {
 
   async function updateTenantSettings(updated) {
     const data = await runProtectedRequest("Update settings", () =>
-      apiRequest("/api/tenant-settings", {
+      apiRequest("/api/TenantSettings", {
         method: "PUT",
         headers: getProtectedHeaders(),
         body: JSON.stringify(updated),
@@ -750,7 +750,7 @@ export default function App() {
     if (!permissions.includes("tenant.admin")) return;
     const data = await runProtectedRequest(
       "RBAC status",
-      () => apiRequest("/api/rbac-migration/status", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/RBACMigration/status", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data?.status) setRbacStatus(data.status);
@@ -771,7 +771,7 @@ export default function App() {
   async function checkFeature(feature) {
     return await runProtectedRequest(
       `Check ${feature}`,
-      () => apiRequest(`/api/tenant-settings/features/${feature}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/TenantSettings/features/${feature}`, { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
   }
@@ -779,7 +779,7 @@ export default function App() {
   async function checkLimit(resource, currentUsage) {
     return await runProtectedRequest(
       `Check ${resource} limit`,
-      () => apiRequest(`/api/tenant-settings/limits/${resource}?currentUsage=${currentUsage}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/TenantSettings/limits/${resource}?currentUsage=${currentUsage}`, { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
   }
@@ -1087,8 +1087,8 @@ export default function App() {
                               placeholder="colleague@example.com"
                               required
                             />
-                            <select 
-                              value={inviteRole} 
+                            <select
+                              value={inviteRole}
                               onChange={(e) => setInviteRole(e.target.value)}
                               className="page-size-select"
                               style={{ width: 'auto', marginRight: '0.5rem' }}
