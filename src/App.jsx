@@ -22,7 +22,7 @@ const emptySession = {
   token: "",
   refreshToken: "",
   accessTokenExpiresAt: "",
-  isEmailVerified: false,
+  isEmailVerified: true,
 };
 
 const initialAuthForms = {
@@ -759,7 +759,7 @@ export default function App() {
   async function handleRbacMigrate() {
     setRbacLoading(true);
     const data = await runProtectedRequest("RBAC migration", () =>
-      apiRequest("/api/rbac-migration/migrate", {
+      apiRequest("/api/RBACMigration/migrate", {
         method: "POST",
         headers: getProtectedHeaders(),
       }),
@@ -1010,7 +1010,7 @@ export default function App() {
                     onClick={() => setActiveWorkspaceTab('projects')}
                   >
                     Projects
-                    {!session.isEmailVerified && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
+                    {session.isEmailVerified === false && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
                   </button>
                   <button
                     className={`tab-btn ${activeWorkspaceTab === 'orders' ? 'active' : ''}`}
@@ -1018,7 +1018,7 @@ export default function App() {
                     onClick={() => setActiveWorkspaceTab('orders')}
                   >
                     Orders
-                    {!session.isEmailVerified && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
+                    {session.isEmailVerified === false && <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🔒</span>}
                   </button>
                   {session.role === 'TenantAdmin' && (
                     <button
@@ -1032,7 +1032,7 @@ export default function App() {
                 </div>
 
                 <div className="workspace-main__header">
-                  {!session.isEmailVerified && (activeWorkspaceTab === 'projects' || activeWorkspaceTab === 'orders') ? (
+                  {session.isEmailVerified === false && (activeWorkspaceTab === 'projects' || activeWorkspaceTab === 'orders') ? (
                     <div className="notice notice--warning" style={{ margin: 0, width: '100%' }}>
                       <strong>Email Verification Required</strong><br />
                       Please verify your email address to enable project and order management.
@@ -1486,7 +1486,7 @@ export default function App() {
                           </label>
                           <div className="setting-limit">
                             <span className="muted">Max Projects:</span>
-                            <strong>{tenantSettings.maxProjects}</strong>
+                            <strong>{tenantSettings.maxProjects === -1 ? "Unlimited" : tenantSettings.maxProjects}</strong>
                           </div>
                         </div>
                       ) : (
@@ -1646,10 +1646,10 @@ export default function App() {
                     <div className="plan-card__desc">{plan.description}</div>
                     <div className="plan-card__meta">
                       <div className="plan-card__meta-item">
-                        <strong>{plan.maxUsers}</strong> users
+                        <strong>{plan.maxUsers === -1 ? "Unlimited" : plan.maxUsers}</strong> users
                       </div>
                       <div className="plan-card__meta-item">
-                        <strong>{plan.rateLimitPerMinute}</strong> req/min
+                        <strong>{plan.rateLimitPerMinute === -1 ? "Unlimited" : plan.rateLimitPerMinute}</strong> req/min
                       </div>
                     </div>
                     <ul className="plan-card__features">
