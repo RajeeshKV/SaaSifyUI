@@ -1545,6 +1545,48 @@ export default function App() {
 
                     <div className="glass-card">
                       <div className="section-heading section-heading--compact">
+                        <span className="eyebrow">ADMIN</span>
+                        <h2>Team Management</h2>
+                      </div>
+                      <form className="form-grid" onSubmit={handleInviteUser} style={{ gap: "1rem" }}>
+                        <label>
+                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.25rem", display: "block" }}>
+                            Email Address
+                          </span>
+                          <input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            placeholder="colleague@example.com"
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.25rem", display: "block" }}>
+                            Role
+                          </span>
+                          <select 
+                            value={inviteRole} 
+                            onChange={(e) => setInviteRole(e.target.value)}
+                            className="input"
+                            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-sm)", color: "white", padding: "0.5rem" }}
+                          >
+                            <option value="User">User</option>
+                            <option value="Admin">Admin</option>
+                          </select>
+                        </label>
+                        <button 
+                          className="button button--primary button--wide button--sm"
+                          disabled={apiLoading === "Invite user"}
+                          type="submit"
+                        >
+                          {apiLoading === "Invite user" ? "Sending..." : "Send Invitation"}
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="glass-card">
+                      <div className="section-heading section-heading--compact">
                         <span className="eyebrow">SYSTEM</span>
                         <h2>RBAC Migration</h2>
                       </div>
