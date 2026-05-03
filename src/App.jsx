@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ResponsePanel from "./components/ResponsePanel";
 import { API_BASE_URL, apiRequest, buildHeaders } from "./lib/api";
+// Import new services and components
+import tokenManager from "./services/tokenManager";
+import apiClient from "./services/apiClient";
+import orderService from "./services/orderService";
+import ErrorHandler from "./utils/errorHandler";
+import OrderCreationForm from "./components/OrderCreationForm";
+import OrderStatusTracker from "./components/OrderStatusTracker";
+import OrderList from "./components/OrderList";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 const SESSION_STORAGE_KEY = "saasify-ui-session";
 
@@ -87,6 +96,13 @@ export default function App() {
   const [rbacLoading, setRbacLoading] = useState(false);
   const [isStripeLoading, setIsStripeLoading] = useState("");
 
+  // New states for Orders and Health
+  const [microserviceHealth, setMicroserviceHealth] = useState({ loading: true, data: null, error: "" });
+  const [orderServiceHealth, setOrderServiceHealth] = useState({ loading: true, data: null, error: "" });
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState("projects");
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+
   useEffect(() => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   }, [session]);
@@ -95,21 +111,58 @@ export default function App() {
     let ignore = false;
 
     async function fetchHealth() {
+      // 1. SaaSify API Health
       try {
-        const data = await apiRequest("/api/health");
-        if (!ignore) {
-          setHealth({ loading: false, data, error: "" });
-        }
+        const response = await apiClient.get("/api/health");
+        if (!ignore) setHealth({ loading: false, data: response.data, error: "" });
       } catch (error) {
-        if (!ignore) {
-          setHealth({ loading: false, data: null, error: error.message });
-        }
+        if (!ignore) setHealth({ loading: false, data: null, error: error.message });
+      }
+
+      // 2. Render Microservice Health (Requirement)
+      try {
+        const response = await fetch("http://saasifyapi-client.rajeesh.online/health");
+        const data = await response.json();
+        if (!ignore) setMicroserviceHealth({ loading: false, data, error: "" });
+      } catch (error) {
+        if (!ignore) setMicroserviceHealth({ loading: false, data: null, error: error.message });
+      }
+
+      // 3. OrderService Health
+      try {
+        const data = await orderService.checkOrderServiceHealth();
+        if (!ignore) setOrderServiceHealth({ loading: false, data, error: "" });
+      } catch (error) {
+        if (!ignore) setOrderServiceHealth({ loading: false, data: null, error: error.message });
       }
     }
 
     fetchHealth();
+
+    // Event Listeners for ErrorHandler
+    const handleAuthExpired = () => {
+      setSession(emptySession);
+      tokenManager.clearTokens();
+      tokenManager.clearCurrentUser();
+      setShowAuthModal(true);
+    };
+
+    const handleNotification = (e) => {
+      const { message, type } = e.detail;
+      const id = Date.now();
+      setNotifications(prev => [...prev, { id, message, type }]);
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }, 5000);
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired);
+    window.addEventListener('notification', handleNotification);
+
     return () => {
       ignore = true;
+      window.removeEventListener('auth:expired', handleAuthExpired);
+      window.removeEventListener('notification', handleNotification);
     };
   }, []);
 
@@ -655,6 +708,15 @@ export default function App() {
       <div className="ambient ambient--left" />
       <div className="ambient ambient--right" />
 
+      {/* Notifications Overlay */}
+      <div className="notifications-container" style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {notifications.map(n => (
+          <div key={n.id} className={`notice notice--${n.type === 'error' ? 'error' : n.type === 'warning' ? 'warning' : 'success'}`} style={{ margin: 0, boxShadow: 'var(--shadow)', minWidth: '250px' }}>
+            {n.message}
+          </div>
+        ))}
+      </div>
+
       <header className="topbar">
         <a className="brand" href="#home">Saasify</a>
         <nav className="topbar__nav">
@@ -687,15 +749,19 @@ export default function App() {
       <main>
         {!authenticated ? (
           <>
-            <div className={`health-bar health-bar--${health.data ? "online" : health.loading ? "checking" : "offline"}`}>
-              <span className="health-bar__dot" />
-              <span className="health-bar__label">
-                {health.loading
-                  ? "Connecting to backend..."
-                  : health.data
-                    ? "Backend online"
-                    : "Backend unreachable. The service may be waking up."}
-              </span>
+            <div className="health-status-container" style={{ display: 'flex', gap: '1rem', padding: '0.5rem 1.5rem', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--line)' }}>
+              <div className={`health-bar health-bar--${health.data ? "online" : health.loading ? "checking" : "offline"}`} style={{ border: 'none', background: 'none', padding: 0 }}>
+                <span className="health-bar__dot" />
+                <span className="health-bar__label" style={{ fontSize: '0.7rem' }}>API: {health.loading ? "..." : health.data ? "Online" : "Offline"}</span>
+              </div>
+              <div className={`health-bar health-bar--${microserviceHealth.data ? "online" : microserviceHealth.loading ? "checking" : "offline"}`} style={{ border: 'none', background: 'none', padding: 0 }}>
+                <span className="health-bar__dot" />
+                <span className="health-bar__label" style={{ fontSize: '0.7rem' }}>Micro: {microserviceHealth.loading ? "..." : microserviceHealth.data ? "Online" : "Offline"}</span>
+              </div>
+              <div className={`health-bar health-bar--${orderServiceHealth.data ? "online" : orderServiceHealth.loading ? "checking" : "offline"}`} style={{ border: 'none', background: 'none', padding: 0 }}>
+                <span className="health-bar__dot" />
+                <span className="health-bar__label" style={{ fontSize: '0.7rem' }}>Orders: {orderServiceHealth.loading ? "..." : orderServiceHealth.data ? "Online" : "Offline"}</span>
+              </div>
             </div>
 
             <section className="hero hero--landing" id="home">
@@ -834,8 +900,26 @@ export default function App() {
 
             <div className="workspace-layout">
               <article className="workspace-main">
+                <div className="workspace-main__tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.5rem' }}>
+                  <button 
+                    className={`tab-btn ${activeWorkspaceTab === 'projects' ? 'active' : ''}`}
+                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'projects' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
+                    onClick={() => setActiveWorkspaceTab('projects')}
+                  >
+                    Projects
+                  </button>
+                  <button 
+                    className={`tab-btn ${activeWorkspaceTab === 'orders' ? 'active' : ''}`}
+                    style={{ background: 'none', border: 'none', color: activeWorkspaceTab === 'orders' ? 'var(--primary)' : 'var(--text-dim)', fontWeight: 'bold', cursor: 'pointer', padding: '0.5rem' }}
+                    onClick={() => setActiveWorkspaceTab('orders')}
+                  >
+                    Orders
+                  </button>
+                </div>
+
                 <div className="workspace-main__header">
-                  <div className="toolbar">
+                  {activeWorkspaceTab === 'projects' && (
+                    <div className="toolbar">
                     <form className="toolbar__create" onSubmit={handleCreateProject}>
                       <input
                         value={newProjectName}
@@ -870,7 +954,11 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                </div>
+                )}
+              </div>
+
+                {activeWorkspaceTab === 'projects' && (
+                  <>
 
                 {apiFeedback.message ? (
                   <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
@@ -1028,7 +1116,34 @@ export default function App() {
                     </div>
                   </div>
                 )}
-              </article>
+              </>
+            )}
+
+                {activeWorkspaceTab === 'orders' && (
+                <div className="orders-workspace" style={{ display: 'grid', gridTemplateColumns: selectedOrderId ? '1fr 1fr' : '1fr', gap: '1.5rem', height: '100%', overflow: 'hidden' }}>
+                  <div className="orders-left" style={{ overflowY: 'auto', paddingRight: '0.5rem' }}>
+                    <OrderCreationForm onOrderCreated={(order) => {
+                      ErrorHandler.showNotification(`Order ${order.orderId} created!`, 'success');
+                      setSelectedOrderId(order.orderId);
+                    }} />
+                    <OrderList onViewDetails={(id) => setSelectedOrderId(id)} />
+                  </div>
+                  {selectedOrderId && (
+                    <div className="orders-right" style={{ overflowY: 'auto' }}>
+                      <div className="card-header" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                        <button 
+                          className="button button--ghost button--small" 
+                          onClick={() => setSelectedOrderId(null)}
+                        >
+                          Close Details
+                        </button>
+                      </div>
+                      <OrderStatusTracker orderId={selectedOrderId} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </article>
 
               <aside className="workspace-side">
                 <div className="glass-card">
