@@ -68,7 +68,18 @@ function mapProjectsResponse(data) {
 }
 
 export default function App() {
-  const [session, setSession] = useState(() => loadStoredSession());
+  const [session, setSession] = useState(() => {
+    const saved = localStorage.getItem("saasify_session");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Ensure we have a default for isEmailVerified if it's missing from old storage
+      if (parsed.isEmailVerified === undefined) {
+        parsed.isEmailVerified = true;
+      }
+      return parsed;
+    }
+    return emptySession;
+  });
   const [activeTab, setActiveTab] = useState("login");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authForms, setAuthForms] = useState(initialAuthForms);
@@ -308,11 +319,31 @@ export default function App() {
     if (!session.token) return [];
     try {
       const payload = JSON.parse(atob(session.token.split(".")[1]));
-      return payload.permission || [];
+      return payload.permission || payload.permissions || [];
     } catch {
       return [];
     }
   }, [session.token]);
+
+  // Helper to extract verification status from any source
+  function getVerificationStatus(data) {
+    // 1. Check JWT Claims (Specific claim: IsEmailVerified)
+    if (data.token) {
+      try {
+        const payload = JSON.parse(atob(data.token.split(".")[1]));
+        if (payload.IsEmailVerified !== undefined) {
+          // Handle both boolean and string "true"/"false" from JWT
+          return payload.IsEmailVerified === true || payload.IsEmailVerified === "true";
+        }
+      } catch (e) {}
+    }
+
+    // 2. Check direct response field
+    if (data.isEmailVerified !== undefined) return !!data.isEmailVerified;
+
+    // 3. If no status found, assume true for legacy compatibility
+    return true;
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -364,7 +395,10 @@ export default function App() {
   }
 
   function applySession(data) {
-    setSession({
+    if (!data.token) return;
+
+    const isVerified = getVerificationStatus(data);
+    const newSession = {
       tenantId: data.tenantId,
       tenantName: data.tenantName,
       userId: data.userId,
@@ -372,9 +406,10 @@ export default function App() {
       role: data.role,
       token: data.token,
       refreshToken: data.refreshToken,
-      accessTokenExpiresAt: data.accessTokenExpiresAt,
-      isEmailVerified: data.isEmailVerified || false,
-    });
+      isEmailVerified: isVerified,
+    };
+    setSession(newSession);
+    localStorage.setItem("saasify_session", JSON.stringify(newSession));
   }
 
   function getProtectedHeaders(includeJson = true) {
