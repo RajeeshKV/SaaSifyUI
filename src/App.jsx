@@ -113,6 +113,7 @@ export default function App() {
   const [inviteForm, setInviteForm] = useState({ password: "", confirmPassword: "" });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("User");
+  const [showInviteUserModal, setShowInviteUserModal] = useState(false);
 
   // New states for Orders and Health
   const [microserviceHealth, setMicroserviceHealth] = useState({ loading: true, data: null, error: "" });
@@ -123,6 +124,14 @@ export default function App() {
 
   useEffect(() => {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    // Sync with tokenManager for external Axios services
+    if (session.token) {
+      tokenManager.setTokens(session.token, session.refreshToken);
+      tokenManager.setCurrentUser(
+        { email: session.email, role: session.role },
+        session.tenantId
+      );
+    }
   }, [session]);
 
   useEffect(() => {
@@ -308,6 +317,7 @@ export default function App() {
       });
       ErrorHandler.showNotification(`Invitation sent to ${inviteEmail}`, "success");
       setInviteEmail("");
+      setShowInviteUserModal(false);
     } catch (error) {
       ErrorHandler.showNotification(error.message, "error");
     } finally {
@@ -1548,62 +1558,14 @@ export default function App() {
                         <span className="eyebrow">ADMIN</span>
                         <h2>Team Management</h2>
                       </div>
-                      <form className="form-grid" onSubmit={handleInviteUser} style={{ gap: "1rem" }}>
-                        <label>
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.25rem", display: "block" }}>
-                            Email Address
-                          </span>
-                          <input
-                            type="email"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                            placeholder="colleague@example.com"
-                            required
-                          />
-                        </label>
-                        <label>
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.25rem", display: "block" }}>
-                            Role
-                          </span>
-                          <select 
-                            value={inviteRole} 
-                            onChange={(e) => setInviteRole(e.target.value)}
-                            className="input"
-                            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-sm)", color: "white", padding: "0.5rem" }}
-                          >
-                            <option value="User">User</option>
-                            <option value="Admin">Admin</option>
-                          </select>
-                        </label>
-                        <button 
-                          className="button button--primary button--wide button--sm"
-                          disabled={apiLoading === "Invite user"}
-                          type="submit"
-                        >
-                          {apiLoading === "Invite user" ? "Sending..." : "Send Invitation"}
-                        </button>
-                      </form>
-                    </div>
-
-                    <div className="glass-card">
-                      <div className="section-heading section-heading--compact">
-                        <span className="eyebrow">SYSTEM</span>
-                        <h2>RBAC Migration</h2>
-                      </div>
-                      <div className="history-list history-list--compact">
-                        {rbacStatus.map((s, i) => (
-                          <div key={i} className={`history-item ${s.includes("Not") ? "history-item--warning" : "history-item--success"}`}>
-                            {s}
-                          </div>
-                        ))}
-                      </div>
-                      <button
+                      <p className="muted small" style={{ marginBottom: "1rem" }}>
+                        Manage your tenant members and their access levels.
+                      </p>
+                      <button 
                         className="button button--primary button--wide button--sm"
-                        style={{ marginTop: "1rem" }}
-                        disabled={rbacLoading || !rbacStatus.some((s) => s.includes("Not"))}
-                        onClick={handleRbacMigrate}
+                        onClick={() => setShowInviteUserModal(true)}
                       >
-                        {rbacLoading ? "Migrating..." : "Run Migration"}
+                        + Add Team Member
                       </button>
                     </div>
                   </>
@@ -1767,6 +1729,56 @@ export default function App() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showInviteUserModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowInviteUserModal(false)}>
+          <div className="auth-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal__header">
+              <div>
+                <span className="eyebrow">ADMIN</span>
+                <h2>Add Team Member</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowInviteUserModal(false)}>
+                ×
+              </button>
+            </div>
+            <p className="muted" style={{ marginBottom: "1.5rem" }}>
+              Send an invitation to a new team member to join your tenant.
+            </p>
+            <form className="form-grid" onSubmit={handleInviteUser}>
+              <label>
+                <span>Email Address</span>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@example.com"
+                  required
+                />
+              </label>
+              <label>
+                <span>Role</span>
+                <select 
+                  value={inviteRole} 
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="input"
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-sm)", color: "white", padding: "0.5rem" }}
+                >
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </label>
+              <button 
+                className="button button--primary button--wide"
+                disabled={apiLoading === "Invite user"}
+                type="submit"
+              >
+                {apiLoading === "Invite user" ? "Sending..." : "Send Invitation"}
+              </button>
+            </form>
           </div>
         </div>
       )}
