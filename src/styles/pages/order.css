@@ -1,0 +1,137 @@
+/* Order Success & Cancel Pages */
+.order-success-container,
+.order-cancel-container,
+.order-checkout-container {
+  max-width: 800px;
+  margin: 4rem auto;
+  padding: 2rem;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.success-header,
+.cancel-header,
+.checkout-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.success-icon,
+.cancel-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.success-icon {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 2px solid #10b981;
+}
+
+.cancel-icon {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 2px solid #ef4444;
+}
+
+.success-header h1 {
+  color: #10b981;
+}
+
+.cancel-header h1 {
+  color: #ef4444;
+}
+
+.order-details, .order-items, .explanation, .order-summary {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+  border: 1px solid var(--line);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.status-paid {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.item-row:last-child {
+  border-bottom: none;
+}
+
+.next-steps {
+  background: rgba(59, 130, 246, 0.05);
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.option-card {
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--line);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .order-success-container, .order-cancel-container, .order-checkout-container {
+    padding: 1rem;
+    margin: 1rem auto;
+  }
+}

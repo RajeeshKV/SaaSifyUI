@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ResponsePanel from "./components/ResponsePanel";
 import { API_BASE_URL, apiRequest, buildHeaders } from "./lib/api";
-// Import new services and components
 import tokenManager from "./services/tokenManager";
 import apiClient from "./services/apiClient";
 import orderService from "./services/orderService";
@@ -10,6 +10,10 @@ import OrderCreationForm from "./components/OrderCreationForm";
 import OrderStatusTracker from "./components/OrderStatusTracker";
 import OrderList from "./components/OrderList";
 import LoadingSpinner from "./components/LoadingSpinner";
+import OrderSuccessPage from "./pages/order/success";
+import OrderCancelPage from "./pages/order/cancel";
+import OrderCheckoutPage from "./pages/order/checkout";
+import "./styles/pages/order.css";
 
 const SESSION_STORAGE_KEY = "saasify-ui-session";
 
@@ -68,6 +72,20 @@ function mapProjectsResponse(data) {
 }
 
 export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/order/success" element={<OrderSuccessPage />} />
+        <Route path="/order/cancel" element={<OrderCancelPage />} />
+        <Route path="/order/checkout" element={<OrderCheckoutPage />} />
+        {/* All other routes render the main workspace */}
+        <Route path="*" element={<Workspace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function Workspace() {
   const [session, setSession] = useState(() => {
     const saved = localStorage.getItem("saasify_session");
     if (saved) {
@@ -239,7 +257,13 @@ export default function App() {
     if (path.includes("/billing/error") || errorMsg) {
       setFeedback(setApiFeedback, `Payment error: ${errorMsg || "An unknown error occurred"}`, "error");
       window.history.replaceState({}, document.title, "/");
-    } else if (sessionId && (path.includes("/billing/success") || path === "/" || params.get("success") === "true")) {
+    } else if (path.includes("/billing/success") || params.get("success") === "true") {
+      setFeedback(setApiFeedback, "Payment completed successfully! Your plan has been updated.", "success");
+      void fetchSubscription();
+      void fetchSubscriptionHistory();
+      window.history.replaceState({}, document.title, "/");
+    } else if (sessionId && path === "/") {
+      // Fallback for direct Stripe redirects if needed
       void verifyStripeSession(sessionId);
     }
   }, [session.token, session.tenantId]);
@@ -478,6 +502,7 @@ export default function App() {
       setLastResponse({ title: label, value: data ?? "204 No Content", tone: "success" });
       return data;
     } catch (error) {
+      console.error(`[API Error] ${label}:`, error);
       if (error.status === 401) {
         setSession(emptySession);
         setFeedback(setApiFeedback, "Session expired or token invalid. You have been signed out.", "error");
