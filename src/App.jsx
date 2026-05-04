@@ -775,7 +775,11 @@ export default function App() {
       apiRequest("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: getProtectedHeaders(),
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ 
+          planId,
+          successUrl: `${window.location.origin}/?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${window.location.origin}/`
+        }),
       }),
     );
     setIsStripeLoading("");
@@ -796,13 +800,13 @@ export default function App() {
   async function verifyStripeSession(sessionId) {
     const data = await runProtectedRequest(
       "Verify payment",
-      () => apiRequest(`/api/Stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
     );
     if (data) {
       await fetchSubscription();
       await fetchSubscriptionHistory();
-      // Clear URL params
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clear URL params and redirect to root UI
+      window.history.replaceState({}, document.title, "/");
     }
   }
 
