@@ -236,13 +236,10 @@ export default function App() {
     const errorMsg = params.get("error");
     const path = window.location.pathname.toLowerCase();
 
-    if (path.includes("/billing/error")) {
-      setFeedback(setApiFeedback, "Payment was canceled. No charges were made.", "neutral");
+    if (path.includes("/billing/error") || errorMsg) {
+      setFeedback(setApiFeedback, `Payment error: ${errorMsg || "An unknown error occurred"}`, "error");
       window.history.replaceState({}, document.title, "/");
-    } else if (errorMsg) {
-      setFeedback(setApiFeedback, `Payment error: ${errorMsg}`, "error");
-      window.history.replaceState({}, document.title, "/");
-    } else if (sessionId && (path.includes("/billing/success") || path === "/")) {
+    } else if (sessionId && (path.includes("/billing/success") || path === "/" || params.get("success") === "true")) {
       void verifyStripeSession(sessionId);
     }
   }, [session.token, session.tenantId]);
@@ -395,10 +392,11 @@ export default function App() {
   }, [session.token]);
 
   const sessionExpiryLabel = useMemo(() => {
-    if (!session.accessTokenExpiresAt) return "No active token";
+    if (!session.token) return "No active session";
+    if (!session.accessTokenExpiresAt) return "Token active (expiry unknown)";
     const date = new Date(session.accessTokenExpiresAt);
     return Number.isNaN(date.getTime()) ? session.accessTokenExpiresAt : date.toLocaleString("en-IN");
-  }, [session.accessTokenExpiresAt]);
+  }, [session.token, session.accessTokenExpiresAt]);
 
   function updateAuthForm(form, field, value) {
     setAuthForms((current) => ({
@@ -809,7 +807,7 @@ export default function App() {
   async function verifyStripeSession(sessionId) {
     const data = await runProtectedRequest(
       "Verify payment",
-      () => apiRequest(`/api/stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/Stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
     );
     if (data) {
       await fetchSubscription();
