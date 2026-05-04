@@ -233,7 +233,16 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
-    if (sessionId && isSessionActive(session)) {
+    const errorMsg = params.get("error");
+    const path = window.location.pathname.toLowerCase();
+
+    if (path.includes("/billing/error")) {
+      setFeedback(setApiFeedback, "Payment was canceled. No charges were made.", "neutral");
+      window.history.replaceState({}, document.title, "/");
+    } else if (errorMsg) {
+      setFeedback(setApiFeedback, `Payment error: ${errorMsg}`, "error");
+      window.history.replaceState({}, document.title, "/");
+    } else if (sessionId && (path.includes("/billing/success") || path === "/")) {
       void verifyStripeSession(sessionId);
     }
   }, [session.token, session.tenantId]);
@@ -775,10 +784,10 @@ export default function App() {
       apiRequest("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: getProtectedHeaders(),
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           planId,
-          successUrl: `${window.location.origin}/?session_id={CHECKOUT_SESSION_ID}`,
-          cancelUrl: `${window.location.origin}/`
+          successUrl: `${window.location.origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${window.location.origin}/billing/cancel`
         }),
       }),
     );
