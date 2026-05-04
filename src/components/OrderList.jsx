@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { orderService } from '../services/orderService';
+import OrderRow from './OrderRow';
 
 const OrderList = ({ onViewDetails }) => {
   const [orders, setOrders] = useState([]);
@@ -44,6 +45,7 @@ const OrderList = ({ onViewDetails }) => {
     switch (status) {
       case 'Pending': return 'status-pending';
       case 'Processing': return 'status-processing';
+      case 'Confirmed': return 'status-confirmed';
       case 'Completed': return 'status-completed';
       case 'Failed': return 'status-failed';
       default: return '';
@@ -85,25 +87,12 @@ const OrderList = ({ onViewDetails }) => {
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order.orderId}>
-                    <td><code>{order.orderId}</code></td>
-                    <td>{order.description}</td>
-                    <td><strong>${order.amount.toFixed(2)}</strong></td>
-                    <td>
-                      <span className={`badge ${getStatusBadgeClass(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                    <td>
-                      <button 
-                        className="button button--primary button--small"
-                        onClick={() => onViewDetails && onViewDetails(order.orderId)}
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
+                  <OrderRow 
+                    key={order.orderId} 
+                    order={order} 
+                    onViewDetails={onViewDetails} 
+                    getStatusBadgeClass={getStatusBadgeClass}
+                  />
                 ))}
               </tbody>
             </table>

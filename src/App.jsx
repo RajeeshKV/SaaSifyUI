@@ -346,7 +346,7 @@ export default function App() {
           // Handle boolean, lowercase "true", or capitalized "True" from JWT
           return String(payload.IsEmailVerified).toLowerCase() === "true";
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. Check direct response field
@@ -1339,8 +1339,8 @@ export default function App() {
                           <span className="eyebrow">ECOMMERCE</span>
                           <h2>Order Management</h2>
                         </div>
-                        <button 
-                          className="button button--primary" 
+                        <button
+                          className="button button--primary"
                           onClick={() => setShowCreateOrderModal(true)}
                           disabled={!session.isEmailVerified}
                         >
@@ -1421,9 +1421,9 @@ export default function App() {
 
                   <div className="stack-actions">
                     {permissions.includes("tenant.admin") && (
-                      <button 
-                        className="button button--primary button--wide button--sm" 
-                        type="button" 
+                      <button
+                        className="button button--primary button--wide button--sm"
+                        type="button"
                         onClick={() => setShowInviteUserModal(true)}
                         style={{ marginBottom: "0.5rem" }}
                       >
@@ -1766,8 +1766,8 @@ export default function App() {
               </label>
               <label>
                 <span>Role</span>
-                <select 
-                  value={inviteRole} 
+                <select
+                  value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="input"
                   style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-sm)", color: "white", padding: "0.5rem" }}
@@ -1776,7 +1776,7 @@ export default function App() {
                   <option value="Admin">Admin</option>
                 </select>
               </label>
-              <button 
+              <button
                 className="button button--primary button--wide"
                 disabled={apiLoading === "Invite user"}
                 type="submit"
