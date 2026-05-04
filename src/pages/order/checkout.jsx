@@ -8,7 +8,7 @@ export default function OrderCheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const orderData = location.state?.orderData || {
+  const orderData = location.state?.orderData || JSON.parse(localStorage.getItem('pending_order_data')) || {
     id: 'ORD-' + Date.now(),
     amount: 99.99,
     description: 'Sample Order',

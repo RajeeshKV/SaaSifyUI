@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import tokenManager from '../services/tokenManager';
+import { createOrderCheckoutSession } from '../api/orders';
 
 const OrderCreationForm = ({ onOrderCreated }) => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
 
   const { user } = tokenManager.getCurrentUser();
 
-  const handleNextStep = (e) => {
+  const handleNextStep = async (e) => {
     e.preventDefault();
     setError('');
     
@@ -32,9 +33,28 @@ const OrderCreationForm = ({ onOrderCreated }) => {
       ]
     };
 
-    // Close the modal (parent handles this) and navigate
-    if (onOrderCreated) onOrderCreated(); 
-    navigate('/order/checkout', { state: { orderData } });
+    console.log("Initiating order checkout...");
+
+    try {
+      // 1. Call the backend to create a Stripe session (exactly like subscriptions)
+      const response = await createOrderCheckoutSession({
+        Amount: parseFloat(formData.amount),
+        Currency: 'usd',
+        OrderId: 'ORD-' + Date.now(),
+        Description: formData.description,
+        CustomerEmail: formData.customerEmail || user?.email
+      });
+
+      if (response?.checkoutUrl) {
+        // 2. Redirect to Stripe immediately
+        window.location.href = response.checkoutUrl;
+      } else {
+        throw new Error('No checkout URL received');
+      }
+    } catch (err) {
+      console.error("Checkout failed:", err);
+      setError(err.message || "Failed to start checkout");
+    }
   };
 
   return (

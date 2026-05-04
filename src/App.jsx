@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import ResponsePanel from "./components/ResponsePanel";
 import { API_BASE_URL, apiRequest, buildHeaders } from "./lib/api";
 import tokenManager from "./services/tokenManager";
@@ -72,32 +72,31 @@ function mapProjectsResponse(data) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(() => loadStoredSession());
+
+  useEffect(() => {
+    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    if (session.token) {
+      tokenManager.setTokens(session.token, session.refreshToken);
+      tokenManager.setCurrentUser({ email: session.email, role: session.role }, session.tenantId);
+    }
+  }, [session]);
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/order/success" element={<OrderSuccessPage />} />
         <Route path="/order/cancel" element={<OrderCancelPage />} />
         <Route path="/order/checkout" element={<OrderCheckoutPage />} />
-        {/* All other routes render the main workspace */}
-        <Route path="*" element={<Workspace />} />
+        <Route path="*" element={<Workspace session={session} setSession={setSession} />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
-function Workspace() {
-  const [session, setSession] = useState(() => {
-    const saved = localStorage.getItem("saasify_session");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Ensure we have a default for isEmailVerified if it's missing from old storage
-      if (parsed.isEmailVerified === undefined) {
-        parsed.isEmailVerified = true;
-      }
-      return parsed;
-    }
-    return emptySession;
-  });
+function Workspace({ session, setSession }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("login");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authForms, setAuthForms] = useState(initialAuthForms);
@@ -141,17 +140,7 @@ function Workspace() {
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  useEffect(() => {
-    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    // Sync with tokenManager for external Axios services
-    if (session.token) {
-      tokenManager.setTokens(session.token, session.refreshToken);
-      tokenManager.setCurrentUser(
-        { email: session.email, role: session.role },
-        session.tenantId
-      );
-    }
-  }, [session]);
+  // Session management moved to App component
 
   useEffect(() => {
     let ignore = false;
@@ -249,24 +238,24 @@ function Workspace() {
   }, [session.token, session.tenantId]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const sessionId = params.get("session_id");
     const errorMsg = params.get("error");
-    const path = window.location.pathname.toLowerCase();
+    const path = location.pathname.toLowerCase();
 
     if (path.includes("/billing/error") || errorMsg) {
       setFeedback(setApiFeedback, `Payment error: ${errorMsg || "An unknown error occurred"}`, "error");
-      window.history.replaceState({}, document.title, "/");
+      navigate("/");
     } else if (path.includes("/billing/success") || params.get("success") === "true") {
       setFeedback(setApiFeedback, "Payment completed successfully! Your plan has been updated.", "success");
       void fetchSubscription();
       void fetchSubscriptionHistory();
-      window.history.replaceState({}, document.title, "/");
+      navigate("/");
     } else if (sessionId && path === "/") {
       // Fallback for direct Stripe redirects if needed
       void verifyStripeSession(sessionId);
     }
-  }, [session.token, session.tenantId]);
+  }, [session.token, session.tenantId, location]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
