@@ -41,7 +41,7 @@ const ProjectsGrid = ({
             </th>
             <th className="col-id">ID</th>
             <th className="col-name">Name</th>
-            <th className="col-actions">Actions</th>
+            <th className="col-actions"><span style={{ visibility: 'hidden' }}>Actions</span></th>
           </tr>
         </thead>
         <tbody>

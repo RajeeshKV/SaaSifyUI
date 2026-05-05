@@ -4,10 +4,11 @@ const WorkspaceHero = ({
   session, 
   subscription, 
   projectsLoading, 
-  onRefreshProjects, 
   onShowUpgradeModal, 
-  onOpenCustomerPortal, 
-  onRefreshToken 
+  onOpenCustomerPortal,
+  onCreateProject,
+  onCreateOrder,
+  onShowInviteUserModal
 }) => {
   return (
     <section className="workspace-hero">
@@ -29,8 +30,21 @@ const WorkspaceHero = ({
         )}
       </div>
       <div className="workspace-hero__actions">
-        <button className="button button--primary button--sm" type="button" onClick={onRefreshProjects}>
-          {projectsLoading ? "Refreshing..." : "Refresh"}
+        <button 
+          className="button button--primary button--sm" 
+          type="button" 
+          onClick={onCreateProject}
+          disabled={!session.isEmailVerified}
+        >
+          + Create Project
+        </button>
+        <button 
+          className="button button--primary button--sm" 
+          type="button" 
+          onClick={onCreateOrder}
+          disabled={!session.isEmailVerified}
+        >
+          + Create Order
         </button>
         <button className="button button--ghost button--sm" type="button" onClick={onShowUpgradeModal}>
           Upgrade Plan
@@ -40,8 +54,8 @@ const WorkspaceHero = ({
             Billing Portal
           </button>
         )}
-        <button className="button button--ghost button--sm" type="button" onClick={onRefreshToken}>
-          Refresh Token
+        <button className="button button--primary button--sm" type="button" onClick={onShowInviteUserModal}>
+          + Add Team Member
         </button>
       </div>
     </section>

@@ -17,6 +17,7 @@ import AuthModal from "../auth/AuthModal";
 import UpgradeModal from "./UpgradeModal";
 import InviteUserModal from "./InviteUserModal";
 import CreateOrderModal from "./CreateOrderModal";
+import CreateProjectModal from "./CreateProjectModal";
 import InviteAcceptModal from "../auth/InviteAcceptModal";
 import WorkspaceHero from "./WorkspaceHero";
 import WorkspaceTabs from "./WorkspaceTabs";
@@ -44,7 +45,6 @@ export default function Workspace({ session, setSession }) {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectDrafts, setProjectDrafts] = useState({});
   const [selectedProjectIds, setSelectedProjectIds] = useState([]);
-  const [newProjectName, setNewProjectName] = useState("");
   const [apiFeedback, setApiFeedback] = useState({ message: "", tone: "neutral" });
   const [apiLoading, setApiLoading] = useState("");
   const [lastResponse, setLastResponse] = useState(null);
@@ -75,6 +75,7 @@ export default function Workspace({ session, setSession }) {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState("projects");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -328,6 +329,13 @@ export default function Workspace({ session, setSession }) {
 
   const sessionExpiryLabel = useMemo(() => {
     if (!session.token) return "No active session";
+    try {
+      const payload = JSON.parse(atob(session.token.split(".")[1]));
+      if (payload.exp) {
+        const date = new Date(payload.exp * 1000);
+        return date.toLocaleString("en-IN");
+      }
+    } catch (e) {}
     if (!session.accessTokenExpiresAt) return "Token active (expiry unknown)";
     const date = new Date(session.accessTokenExpiresAt);
     return Number.isNaN(date.getTime()) ? session.accessTokenExpiresAt : date.toLocaleString("en-IN");
@@ -453,13 +461,11 @@ export default function Workspace({ session, setSession }) {
     }
   }
 
-  async function handleCreateProject(event) {
-    event.preventDefault();
-    if (!newProjectName.trim()) return;
+  async function handleCreateProject(name) {
     const data = await runProtectedRequest("Create project", () =>
-      apiRequest("/api/v1/projects", { method: "POST", headers: getProtectedHeaders(), body: JSON.stringify({ name: newProjectName.trim() }) })
+      apiRequest("/api/v1/projects", { method: "POST", headers: getProtectedHeaders(), body: JSON.stringify({ name }) })
     );
-    if (data) { setNewProjectName(""); await fetchProjects(); }
+    if (data) { await fetchProjects(); }
   }
 
   async function handleInlineUpdate(projectId) {
@@ -638,10 +644,11 @@ export default function Workspace({ session, setSession }) {
             session={session}
             subscription={subscription}
             projectsLoading={projectsLoading}
-            onRefreshProjects={fetchProjects}
             onShowUpgradeModal={() => setShowUpgradeModal(true)}
             onOpenCustomerPortal={handleOpenCustomerPortal}
-            onRefreshToken={refreshSession}
+            onCreateProject={() => setShowCreateProjectModal(true)}
+            onCreateOrder={() => setShowCreateOrderModal(true)}
+            onShowInviteUserModal={() => setShowInviteUserModal(true)}
           />
         )}
 
@@ -664,10 +671,6 @@ export default function Workspace({ session, setSession }) {
                   <>
                     {activeWorkspaceTab === 'projects' && (
                       <ProjectToolbar
-                        newProjectName={newProjectName}
-                        setNewProjectName={setNewProjectName}
-                        handleCreateProject={handleCreateProject}
-                        apiLoading={apiLoading}
                         selectedCount={selectedCount}
                         handleBulkUpdate={handleBulkUpdate}
                         handleBulkDelete={handleBulkDelete}
@@ -727,13 +730,6 @@ export default function Workspace({ session, setSession }) {
                         <span className="eyebrow">ECOMMERCE</span>
                         <h2>Order Management</h2>
                       </div>
-                      <button
-                        className="button button--primary"
-                        onClick={() => setShowCreateOrderModal(true)}
-                        disabled={!session.isEmailVerified}
-                      >
-                        {session.isEmailVerified ? "+ Create Order" : "🔒 Verify Email to Order"}
-                      </button>
                     </div>
                     <OrderList onViewDetails={(id) => setSelectedOrderId(id)} />
                   </div>
@@ -832,6 +828,13 @@ export default function Workspace({ session, setSession }) {
         handleInviteUser={handleInviteUser}
         apiLoading={apiLoading}
         onClose={() => setShowInviteUserModal(false)}
+      />
+
+      <CreateProjectModal
+        show={showCreateProjectModal}
+        handleCreateProject={handleCreateProject}
+        apiLoading={apiLoading}
+        onClose={() => setShowCreateProjectModal(false)}
       />
 
       <CreateOrderModal

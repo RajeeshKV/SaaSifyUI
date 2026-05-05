@@ -7,8 +7,6 @@ const SessionDetails = ({
   sessionExpiryLabel, 
   toCurlBlock, 
   API_BASE_URL, 
-  onShowInviteUserModal, 
-  onRefreshToken, 
   onRevokeSession, 
   onSignOutLocally,
   lastResponse
@@ -54,19 +52,6 @@ const SessionDetails = ({
         </div>
 
         <div className="stack-actions">
-          {permissions.includes("tenant.admin") && (
-            <button
-              className="button button--primary button--wide button--sm"
-              type="button"
-              onClick={onShowInviteUserModal}
-              style={{ marginBottom: "0.5rem" }}
-            >
-              + Add Team Member
-            </button>
-          )}
-          <button className="button button--ghost button--wide button--sm" type="button" onClick={onRefreshToken}>
-            Refresh Token
-          </button>
           <button className="button button--ghost button--wide button--sm" type="button" onClick={onRevokeSession}>
             Revoke Token
           </button>
