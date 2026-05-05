@@ -62,7 +62,7 @@ function toCurlBlock(session) {
   -d '{"email":"user@example.com","password":"password123","tenantId":1}'`;
   }
 
-  return `curl ${API_BASE_URL}/api/projects \\
+  return `curl ${API_BASE_URL}/api/v1/projects \\
   -H "Authorization: Bearer ${session.token}" \\
   -H "X-Tenant-Id: ${session.tenantId}"`;
 }
@@ -165,7 +165,7 @@ function Workspace({ session, setSession }) {
     async function fetchHealth() {
       // 1. SaaSify API Health
       void fetchWithRetry(
-        () => apiClient.get("/api/Health").then(res => res.data),
+        () => apiClient.get("/api/health").then(res => res.data),
         setHealth,
         "Main API"
       );
@@ -276,7 +276,7 @@ function Workspace({ session, setSession }) {
   async function handleVerifyEmail(email, token) {
     setFeedback(setApiFeedback, "Verifying your email...", "neutral");
     try {
-      await apiRequest("/api/EmailVerification/verify", {
+      await apiRequest("/api/v1/emailverification/verify", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({ email, token })
@@ -299,7 +299,7 @@ function Workspace({ session, setSession }) {
 
     setApiLoading("Accepting invitation");
     try {
-      await apiRequest("/api/EmailVerification/set-password", {
+      await apiRequest("/api/v1/emailverification/set-password", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
@@ -326,7 +326,7 @@ function Workspace({ session, setSession }) {
 
     setApiLoading("Invite user");
     try {
-      await apiRequest("/api/Users", {
+      await apiRequest("/api/v1/users", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
@@ -390,7 +390,7 @@ function Workspace({ session, setSession }) {
         return;
       }
       try {
-        const data = await apiRequest("/api/Subscription/plans", {
+        const data = await apiRequest("/api/v1/subscription/plans", {
           headers: buildHeaders({ token: session.token, tenantId: session.tenantId }),
         });
         if (!ignore) setPlans(Array.isArray(data) ? data : fallbackPlans);
@@ -511,7 +511,7 @@ function Workspace({ session, setSession }) {
     const data = await runProtectedRequest(
       "List projects",
       () =>
-        apiRequest(`/api/Projects?pageNumber=${page}&pageSize=${size}`, {
+        apiRequest(`/api/v1/projects?pageNumber=${page}&pageSize=${size}`, {
           headers: getProtectedHeaders(),
         }),
       { silentSuccess: true },
@@ -547,7 +547,7 @@ function Workspace({ session, setSession }) {
       : authForms.register;
 
     try {
-      const data = await apiRequest(`/api/Auth/${activeTab}`, {
+      const data = await apiRequest(`/api/v1/auth/${activeTab}`, {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify(payload),
@@ -598,7 +598,7 @@ function Workspace({ session, setSession }) {
     if (!newProjectName.trim()) return;
 
     const data = await runProtectedRequest("Create project", () =>
-      apiRequest("/api/Projects", {
+      apiRequest("/api/v1/projects", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({ name: newProjectName.trim() }),
@@ -619,7 +619,7 @@ function Workspace({ session, setSession }) {
     }
 
     const data = await runProtectedRequest(`Update project #${projectId}`, () =>
-      apiRequest(`/api/Projects/${projectId}`, {
+      apiRequest(`/api/v1/projects/${projectId}`, {
         method: "PUT",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
@@ -636,7 +636,7 @@ function Workspace({ session, setSession }) {
 
   async function handleDeleteProject(projectId) {
     const ok = await runProtectedRequest(`Delete project #${projectId}`, () =>
-      apiRequest(`/api/Projects/${projectId}`, {
+      apiRequest(`/api/v1/projects/${projectId}`, {
         method: "DELETE",
         headers: getProtectedHeaders(false),
       }),
@@ -655,7 +655,7 @@ function Workspace({ session, setSession }) {
       if (!name) continue;
 
       await runProtectedRequest(`Update project #${projectId}`, () =>
-        apiRequest(`/api/projects/${projectId}`, {
+        apiRequest(`/api/v1/projects/${projectId}`, {
           method: "PUT",
           headers: getProtectedHeaders(),
           body: JSON.stringify({ id: Number(projectId), name }),
@@ -672,7 +672,7 @@ function Workspace({ session, setSession }) {
 
     for (const projectId of [...selectedProjectIds]) {
       await runProtectedRequest(`Delete project #${projectId}`, () =>
-        apiRequest(`/api/projects/${projectId}`, {
+        apiRequest(`/api/v1/projects/${projectId}`, {
           method: "DELETE",
           headers: getProtectedHeaders(false),
         }),
@@ -685,7 +685,7 @@ function Workspace({ session, setSession }) {
 
   async function refreshSession() {
     const data = await runProtectedRequest("Refresh token", () =>
-      apiRequest("/api/Auth/refresh", {
+      apiRequest("/api/v1/auth/refresh", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
@@ -702,7 +702,7 @@ function Workspace({ session, setSession }) {
   async function revokeSession() {
     setSigningOut(true);
     const data = await runProtectedRequest("Revoke token", () =>
-      apiRequest("/api/Auth/revoke", {
+      apiRequest("/api/v1/auth/revoke", {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
@@ -725,7 +725,7 @@ function Workspace({ session, setSession }) {
   async function fetchSubscription() {
     const data = await runProtectedRequest(
       "Get subscription",
-      () => apiRequest("/api/Subscription/current", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/v1/subscription/current", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data) setSubscription(data);
@@ -734,7 +734,7 @@ function Workspace({ session, setSession }) {
   async function fetchSubscriptionHistory() {
     const data = await runProtectedRequest(
       "Subscription history",
-      () => apiRequest("/api/Subscription/history", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/v1/subscription/history", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data) setSubscriptionHistory(Array.isArray(data) ? data : []);
@@ -743,7 +743,7 @@ function Workspace({ session, setSession }) {
   async function handleUpgradePlan(planName) {
     setUpgradeLoading(planName);
     const data = await runProtectedRequest(`Upgrade to ${planName}`, () =>
-      apiRequest("/api/Subscription/upgrade", {
+      apiRequest("/api/v1/subscription/upgrade", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({ newPlan: planName }),
@@ -759,7 +759,7 @@ function Workspace({ session, setSession }) {
 
   async function handleCancelSubscription() {
     const data = await runProtectedRequest("Cancel subscription", () =>
-      apiRequest("/api/Subscription/cancel", {
+      apiRequest("/api/v1/subscription/cancel", {
         method: "POST",
         headers: getProtectedHeaders(false),
       }),
@@ -773,7 +773,7 @@ function Workspace({ session, setSession }) {
   async function fetchTenantSettings() {
     const data = await runProtectedRequest(
       "Get tenant settings",
-      () => apiRequest("/api/TenantSettings", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/v1/tenantsettings", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data) setTenantSettings(data);
@@ -781,7 +781,7 @@ function Workspace({ session, setSession }) {
 
   async function updateTenantSettings(updated) {
     const data = await runProtectedRequest("Update settings", () =>
-      apiRequest("/api/TenantSettings", {
+      apiRequest("/api/v1/tenantsettings", {
         method: "PUT",
         headers: getProtectedHeaders(),
         body: JSON.stringify(updated),
@@ -793,7 +793,7 @@ function Workspace({ session, setSession }) {
   async function handleCreateStripeSession(planId) {
     setIsStripeLoading(planId);
     const data = await runProtectedRequest(`Checkout ${planId}`, () =>
-      apiRequest("/api/stripe/create-checkout-session", {
+      apiRequest("/api/v1/stripe/create-checkout-session", {
         method: "POST",
         headers: getProtectedHeaders(),
         body: JSON.stringify({
@@ -821,7 +821,7 @@ function Workspace({ session, setSession }) {
   async function verifyStripeSession(sessionId) {
     const data = await runProtectedRequest(
       "Verify payment",
-      () => apiRequest(`/api/Stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
+      () => apiRequest(`/api/v1/stripe/success?session_id=${sessionId}`, { headers: getProtectedHeaders() }),
     );
     if (data) {
       await fetchSubscription();
@@ -835,7 +835,7 @@ function Workspace({ session, setSession }) {
     if (!permissions.includes("tenant.admin")) return;
     const data = await runProtectedRequest(
       "RBAC status",
-      () => apiRequest("/api/RBACMigration/status", { headers: getProtectedHeaders() }),
+      () => apiRequest("/api/v1/rbacmigration/status", { headers: getProtectedHeaders() }),
       { silentSuccess: true },
     );
     if (data?.status) setRbacStatus(data.status);
@@ -844,7 +844,7 @@ function Workspace({ session, setSession }) {
   async function handleRbacMigrate() {
     setRbacLoading(true);
     const data = await runProtectedRequest("RBAC migration", () =>
-      apiRequest("/api/RBACMigration/migrate", {
+      apiRequest("/api/v1/rbacmigration/migrate", {
         method: "POST",
         headers: getProtectedHeaders(),
       }),

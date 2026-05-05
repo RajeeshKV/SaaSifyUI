@@ -38,11 +38,11 @@ const OrderCreationForm = ({ onOrderCreated }) => {
     try {
       // 1. Call the backend to create a Stripe session (exactly like subscriptions)
       const response = await createOrderCheckoutSession({
-        Amount: parseFloat(formData.amount),
-        Currency: 'usd',
-        OrderId: 'ORD-' + Date.now(),
-        Description: formData.description,
-        CustomerEmail: formData.customerEmail || user?.email
+        amount: parseFloat(formData.amount),
+        currency: 'usd',
+        orderId: 'ORD-' + Date.now(),
+        description: formData.description,
+        customerEmail: formData.customerEmail || user?.email
       });
 
       if (response?.checkoutUrl) {

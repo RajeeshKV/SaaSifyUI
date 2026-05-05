@@ -35,7 +35,7 @@ const refreshAccessToken = async () => {
     if (!refreshToken) throw new Error('No refresh token');
     
     // Use a separate axios instance to avoid infinite loop with interceptor
-    const response = await axios.post(`${SAASIFY_API_URL}/api/Auth/refresh`, { refreshToken });
+    const response = await axios.post(`${SAASIFY_API_URL}/api/v1/auth/refresh`, { refreshToken });
     
     const { accessToken, refreshToken: newRefreshToken } = response.data;
     tokenManager.setTokens(accessToken, newRefreshToken);

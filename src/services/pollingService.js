@@ -20,7 +20,7 @@ export class OrderStatusPoller {
     try {
       this.attempts++;
       
-      const response = await apiClient.get(`/api/Orders/${this.orderId}`);
+      const response = await apiClient.get(`/api/v1/orders/${this.orderId}`);
       const order = response.data;
       
       this.onUpdate(order);
