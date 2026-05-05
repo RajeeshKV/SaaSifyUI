@@ -649,6 +649,7 @@ export default function Workspace({ session, setSession }) {
             onCreateProject={() => setShowCreateProjectModal(true)}
             onCreateOrder={() => setShowCreateOrderModal(true)}
             onShowInviteUserModal={() => setShowInviteUserModal(true)}
+            activeWorkspaceTab={activeWorkspaceTab}
           />
         )}
 

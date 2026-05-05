@@ -24,7 +24,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
     }
 
     const orderData = {
-      id: 'ORD-' + Date.now(),
+      id: null,
       amount: parseFloat(formData.amount),
       description: formData.description,
       customerEmail: formData.customerEmail || user?.email,
@@ -40,7 +40,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
       const response = await createOrderCheckoutSession({
         amount: parseFloat(formData.amount),
         currency: 'usd',
-        orderId: 'ORD-' + Date.now(),
+        orderId: null,
         description: formData.description,
         customerEmail: formData.customerEmail || user?.email
       });

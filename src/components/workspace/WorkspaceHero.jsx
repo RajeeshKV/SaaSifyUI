@@ -8,7 +8,8 @@ const WorkspaceHero = ({
   onOpenCustomerPortal,
   onCreateProject,
   onCreateOrder,
-  onShowInviteUserModal
+  onShowInviteUserModal,
+  activeWorkspaceTab
 }) => {
   return (
     <section className="workspace-hero">
@@ -30,22 +31,26 @@ const WorkspaceHero = ({
         )}
       </div>
       <div className="workspace-hero__actions">
-        <button 
-          className="button button--primary button--sm" 
-          type="button" 
-          onClick={onCreateProject}
-          disabled={!session.isEmailVerified}
-        >
-          + Create Project
-        </button>
-        <button 
-          className="button button--primary button--sm" 
-          type="button" 
-          onClick={onCreateOrder}
-          disabled={!session.isEmailVerified}
-        >
-          + Create Order
-        </button>
+        {activeWorkspaceTab === 'projects' && (
+          <button 
+            className="button button--primary button--sm" 
+            type="button" 
+            onClick={onCreateProject}
+            disabled={!session.isEmailVerified}
+          >
+            + Create Project
+          </button>
+        )}
+        {activeWorkspaceTab === 'orders' && (
+          <button 
+            className="button button--primary button--sm" 
+            type="button" 
+            onClick={onCreateOrder}
+            disabled={!session.isEmailVerified}
+          >
+            + Create Order
+          </button>
+        )}
         <button className="button button--ghost button--sm" type="button" onClick={onShowUpgradeModal}>
           Upgrade Plan
         </button>
