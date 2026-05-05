@@ -104,7 +104,7 @@ export default function Workspace({ session, setSession }) {
 
       void fetchWithRetry(
         async () => {
-          const response = await fetch("https://saasifyapi-client.rajeesh.online/health");
+          const response = await fetch("https://saasifyapi-client.rajeesh.online/api/health");
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           return await response.json();
         },
@@ -614,7 +614,7 @@ export default function Workspace({ session, setSession }) {
 
       <NotificationsOverlay notifications={notifications} />
 
-      <TopBar 
+      <TopBar
         authenticated={authenticated}
         signingOut={signingOut}
         onRefreshProjects={fetchProjects}
@@ -632,7 +632,7 @@ export default function Workspace({ session, setSession }) {
             <PricingSection plans={plans} plansLoading={plansLoading} onOpenAuthModal={openAuthModal} />
           </>
         ) : (
-          <WorkspaceHero 
+          <WorkspaceHero
             session={session}
             subscription={subscription}
             projectsLoading={projectsLoading}
@@ -646,7 +646,7 @@ export default function Workspace({ session, setSession }) {
         {authenticated && (
           <div className="workspace-layout">
             <article className="workspace-main">
-              <WorkspaceTabs 
+              <WorkspaceTabs
                 activeWorkspaceTab={activeWorkspaceTab}
                 setActiveWorkspaceTab={setActiveWorkspaceTab}
                 session={session}
@@ -661,7 +661,7 @@ export default function Workspace({ session, setSession }) {
                 ) : (
                   <>
                     {activeWorkspaceTab === 'projects' && (
-                      <ProjectToolbar 
+                      <ProjectToolbar
                         newProjectName={newProjectName}
                         setNewProjectName={setNewProjectName}
                         handleCreateProject={handleCreateProject}
@@ -673,7 +673,7 @@ export default function Workspace({ session, setSession }) {
                     )}
 
                     {activeWorkspaceTab === 'users' && (
-                      <UserToolbar 
+                      <UserToolbar
                         inviteEmail={inviteEmail}
                         setInviteEmail={setInviteEmail}
                         inviteRole={inviteRole}
@@ -692,7 +692,7 @@ export default function Workspace({ session, setSession }) {
                     <div className={`notice notice--${apiFeedback.tone}`}>{apiFeedback.message}</div>
                   ) : null}
 
-                  <ProjectsGrid 
+                  <ProjectsGrid
                     projects={projects}
                     projectsLoading={projectsLoading}
                     selectedProjectIds={selectedProjectIds}
@@ -706,7 +706,7 @@ export default function Workspace({ session, setSession }) {
                     apiLoading={apiLoading}
                   />
 
-                  <Pagination 
+                  <Pagination
                     pagination={pagination}
                     pageNumber={pageNumber}
                     pageSize={pageSize}
@@ -767,7 +767,7 @@ export default function Workspace({ session, setSession }) {
             </article>
 
             <aside className="workspace-side">
-              <SessionDetails 
+              <SessionDetails
                 session={session}
                 permissions={permissions}
                 sessionExpiryLabel={sessionExpiryLabel}
@@ -780,7 +780,7 @@ export default function Workspace({ session, setSession }) {
                 lastResponse={lastResponse}
               />
 
-              <SubscriptionCard 
+              <SubscriptionCard
                 subscription={subscription}
                 onShowUpgradeModal={() => setShowUpgradeModal(true)}
                 onCancelSubscription={handleCancelSubscription}
@@ -788,7 +788,7 @@ export default function Workspace({ session, setSession }) {
 
               <SubscriptionHistory history={subscriptionHistory} />
 
-              <TenantSettings 
+              <TenantSettings
                 tenantSettings={tenantSettings}
                 updateTenantSettings={updateTenantSettings}
                 permissions={permissions}
@@ -798,7 +798,7 @@ export default function Workspace({ session, setSession }) {
         )}
       </main>
 
-      <AuthModal 
+      <AuthModal
         show={showAuthModal}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -810,7 +810,7 @@ export default function Workspace({ session, setSession }) {
         onClose={() => setShowAuthModal(false)}
       />
 
-      <UpgradeModal 
+      <UpgradeModal
         show={showUpgradeModal}
         plans={plans}
         subscription={subscription}
@@ -821,7 +821,7 @@ export default function Workspace({ session, setSession }) {
         onClose={() => setShowUpgradeModal(false)}
       />
 
-      <InviteUserModal 
+      <InviteUserModal
         show={showInviteUserModal}
         inviteEmail={inviteEmail}
         setInviteEmail={setInviteEmail}
@@ -832,7 +832,7 @@ export default function Workspace({ session, setSession }) {
         onClose={() => setShowInviteUserModal(false)}
       />
 
-      <CreateOrderModal 
+      <CreateOrderModal
         show={showCreateOrderModal}
         onOrderCreated={(newOrder) => {
           setShowCreateOrderModal(false);
@@ -841,7 +841,7 @@ export default function Workspace({ session, setSession }) {
         onClose={() => setShowCreateOrderModal(false)}
       />
 
-      <InviteAcceptModal 
+      <InviteAcceptModal
         show={showInviteModal}
         inviteForm={inviteForm}
         setInviteForm={setInviteForm}
