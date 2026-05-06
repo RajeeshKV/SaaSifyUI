@@ -12,23 +12,49 @@ export default function OrderSuccessPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const sessionId = urlParams.get('session_id');
-    const success = urlParams.get('success');
+    
+    // Parse URL params for immediate display as fallback
+    const urlData = {
+      orderId: urlParams.get('order_id'),
+      amount: urlParams.get('amount'),
+      currency: urlParams.get('currency'),
+      status: urlParams.get('payment_status'),
+      date: urlParams.get('date')
+    };
 
-    if (sessionId && (success === 'true' || urlParams.has('session_id'))) {
-      fetchOrderDetails(sessionId);
+    const hasUrlData = urlData.amount || urlData.orderId;
+
+    if (hasUrlData) {
+      setOrderData({
+        orderId: urlData.orderId || 'PENDING',
+        amount: urlData.amount || '0.00',
+        currency: urlData.currency || 'USD',
+        createdAt: urlData.date || new Date().toISOString(),
+        items: []
+      });
+    }
+
+    if (sessionId) {
+      fetchOrderDetails(sessionId, hasUrlData);
+    } else if (hasUrlData) {
+      setLoading(false);
     } else {
       setError('Invalid session parameters');
       setLoading(false);
     }
-  }, [location]);
+  }, [location.search]);
 
-  const fetchOrderDetails = async (sessionId) => {
+  const fetchOrderDetails = async (sessionId, hasFallback) => {
     try {
       const data = await getOrderSessionDetails(sessionId);
-      setOrderData(data);
+      if (data) {
+        setOrderData(prev => ({ ...prev, ...data }));
+      }
     } catch (error) {
       console.error('Failed to fetch order details:', error);
-      setError('Unable to load order details');
+      if (!hasFallback) {
+        setError('Unable to load order details');
+      }
     } finally {
       setLoading(false);
     }
