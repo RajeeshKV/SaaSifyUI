@@ -11,15 +11,18 @@ const OrderCreationForm = ({ onOrderCreated }) => {
     customerEmail: '',
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const { user } = tokenManager.getCurrentUser();
 
   const handleNextStep = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     
     if (parseFloat(formData.amount) <= 0) {
       setError('Amount must be greater than 0');
+      setLoading(false);
       return;
     }
 
@@ -54,6 +57,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
     } catch (err) {
       console.error("Checkout failed:", err);
       setError(err.message || "Failed to start checkout");
+      setLoading(false);
     }
   };
 
@@ -71,6 +75,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
             onChange={(e) => setFormData({...formData, amount: e.target.value})}
             placeholder="0.00"
             required
+            disabled={loading}
           />
         </label>
         <label>
@@ -81,6 +86,7 @@ const OrderCreationForm = ({ onOrderCreated }) => {
             placeholder="What is this order for?"
             required
             rows="2"
+            disabled={loading}
           />
         </label>
         <label>
@@ -91,10 +97,11 @@ const OrderCreationForm = ({ onOrderCreated }) => {
             onChange={(e) => setFormData({...formData, customerEmail: e.target.value})}
             placeholder={user?.email || "customer@example.com"}
             required
+            disabled={loading}
           />
         </label>
-        <button type="submit" className="button button--primary button--wide">
-          Next: Review & Payment
+        <button type="submit" className="button button--primary button--wide" disabled={loading}>
+          {loading ? "Processing..." : "Next: Review & Payment"}
         </button>
       </form>
     </div>
